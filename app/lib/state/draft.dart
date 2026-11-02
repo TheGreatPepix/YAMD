@@ -42,6 +42,8 @@ class Draft extends ChangeNotifier {
     picker = p.status == PreviewStatus.ok && p.albums.isNotEmpty
         ? (ArtistPicker(p.albums, load: load)..addListener(notifyListeners))
         : null;
+    final pk = picker;
+    if (pk != null && p.kind == ReleaseKind.album) pk.toggleExpanded(pk.albums.first.id);
     notifyListeners();
   }
 

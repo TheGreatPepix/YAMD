@@ -33,6 +33,12 @@ Future<void> _add(WidgetTester tester, String links) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _downloadAll(WidgetTester tester) async {
+  await tester.tap(find.byWidgetPredicate((w) => w is FilledButton).last);
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump();
+}
+
 void main() {
   testWidgets('без входа виден только экран входа', (tester) async {
     final (core, c) = await _open(tester);
@@ -40,7 +46,7 @@ void main() {
     expect(c.ready, isTrue);
     expect(c.version, '2.0.0');
     expect(find.text('Войти'), findsOneWidget);
-    expect(find.text('Подборка'), findsNothing);
+    expect(find.text('Что скачаем?'), findsNothing);
 
     await core.close();
   });
@@ -52,7 +58,7 @@ void main() {
     expect(c.account.status, AccountStatus.noplus);
     expect(c.canDownload, isFalse);
     expect(find.text('Оформить Плюс'), findsOneWidget);
-    expect(find.text('Подборка'), findsNothing);
+    expect(find.text('Что скачаем?'), findsNothing);
 
     await core.close();
   });
@@ -67,24 +73,25 @@ void main() {
     await core.close();
   });
 
-  testWidgets('с Плюсом: ссылка определяется и альбом качается', (tester) async {
+  testWidgets('альбом определяется по ссылке и качается, загрузки открываются сами', (tester) async {
     final (core, c) = await _open(tester);
     await _login(tester, 'good-token');
 
     expect(c.canDownload, isTrue);
-    expect(find.text('Подборка'), findsOneWidget);
+    expect(find.text('Что скачаем?'), findsOneWidget);
     expect(find.text('Плюс'), findsOneWidget);
 
     await _add(tester, 'https://music.yandex.ru/album/123');
 
-    expect(find.text('Группа крови'), findsOneWidget);
+    expect(find.text('Что скачаем?'), findsNothing);
+    expect(find.text('Группа крови'), findsWidgets);
     expect(find.text('Кино · 8 треков'), findsOneWidget);
-    expect(find.text('1 ссылка · 8 треков'), findsOneWidget);
+    expect(find.text('1 источник · 8 треков'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Скачать'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    await _downloadAll(tester);
     expect(c.drafts.value, isEmpty);
+    expect(c.downloadsOpen.value, isTrue);
+    expect(find.text('Загрузки'), findsOneWidget);
     expect(c.jobs, hasLength(1));
     expect(c.jobs.first.tracks, hasLength(8));
 
@@ -96,6 +103,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.jobs.first.status, JobStatus.done);
     expect(c.jobs.first.formats, containsAll(['FLAC 24/96', 'FLAC 16/44.1']));
+
+    await tester.tap(find.byTooltip('Закрыть'));
+    await tester.pumpAndSettle();
+    expect(c.downloadsOpen.value, isFalse);
 
     await core.close();
   });
@@ -111,17 +122,20 @@ void main() {
     );
 
     expect(c.drafts.value, hasLength(4));
-    expect(find.text('Кукушка'), findsOneWidget);
+    expect(c.selected.value, c.drafts.value.first);
+    expect(find.text('Кукушка'), findsWidgets);
     expect(find.text('Плейлист дня'), findsOneWidget);
     expect(find.text('Не удалось распознать ссылку.'), findsOneWidget);
-    expect(find.text('3 ссылки · 15 треков'), findsOneWidget);
+    expect(find.text('3 источника · 15 треков'), findsOneWidget);
+
+    await tester.tap(find.text('Плейлист дня'));
+    await tester.pumpAndSettle();
+    expect(find.text('Плейлист скачается целиком'), findsOneWidget);
 
     await _add(tester, 'https://music.yandex.ru/album/123');
     expect(c.drafts.value, hasLength(4));
 
-    await tester.tap(find.text('Скачать всё'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    await _downloadAll(tester);
     expect(c.jobs, hasLength(3));
     expect(c.drafts.value, hasLength(1));
 
@@ -137,52 +151,49 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Проверить подписку'));
     await tester.pump();
-    expect(find.text('Подборка'), findsOneWidget);
+    expect(find.text('Что скачаем?'), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(c.canDownload, isTrue);
-    expect(find.text('Подборка'), findsOneWidget);
+    expect(find.text('Что скачаем?'), findsOneWidget);
     expect(find.text('Подписка Плюс активна'), findsOneWidget);
 
     await tester.pumpAndSettle(const Duration(seconds: 5));
     await core.close();
   });
 
-  testWidgets('у исполнителя можно выбрать альбомы и треки', (tester) async {
+  testWidgets('у исполнителя выбираются релизы и треки', (tester) async {
     final (core, c) = await _open(tester);
     await _login(tester, 'good-token');
 
     await _add(tester, 'https://music.yandex.ru/artist/1');
-    expect(find.text('Вся дискография · 33 трека'), findsOneWidget);
+    expect(find.text('вся дискография · 33 трека'), findsOneWidget);
+    expect(find.text('Альбомы · 2'), findsOneWidget);
+    expect(find.text('Синглы и EP · 1'), findsOneWidget);
+    expect(find.text('Сборники · 1'), findsOneWidget);
 
-    await tester.tap(find.text('Выбрать релизы'));
-    await tester.pumpAndSettle();
-    expect(find.text('Альбомы'), findsOneWidget);
-    expect(find.text('Синглы и EP'), findsOneWidget);
-    expect(find.text('Сборники'), findsOneWidget);
+    await tester.tap(find.byType(Checkbox).at(3));
+    await tester.pump();
+    expect(find.text('не выбран'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Последний герой'));
-    await tester.pump();
-    await tester.tap(find.text('Последний герой'));
-    await tester.pump();
-
-    await tester.ensureVisible(find.byTooltip('Выбрать треки').first);
-    await tester.pump();
-    await tester.tap(find.byTooltip('Выбрать треки').first);
+    await tester.tap(find.text('все треки').first);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Война'));
-    await tester.pump();
     await tester.tap(find.text('Война'));
     await tester.pump();
+    await tester.tap(find.byTooltip('Готово'));
+    await tester.pumpAndSettle();
 
-    expect(c.drafts.value.single.trackCount, 10 + 10 + 1);
-    expect(find.text('Выбрано 3 релиза · 21 трек'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Скачать'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    expect(find.text('10 из 11'), findsOneWidget);
+    expect(find.text('3 из 4 релизов · 21 трек'), findsOneWidget);
 
+    await tester.tap(find.text('Сборники · 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Последний герой'), findsOneWidget);
+    expect(find.text('Группа крови'), findsNothing);
+
+    await _downloadAll(tester);
     final select = core.lastDownload!['select'] as List;
     expect(select, hasLength(3));
     expect((select[0] as Map)['album'], '10');
@@ -196,33 +207,20 @@ void main() {
     await core.close();
   });
 
-  testWidgets('у альбома можно выбрать треки, 18+ помечено', (tester) async {
+  testWidgets('в альбоме выбираются треки, 18+ помечено', (tester) async {
     final (core, c) = await _open(tester);
     await _login(tester, 'good-token');
 
     await _add(tester, 'https://music.yandex.ru/album/123');
-    expect(find.text('E'), findsOneWidget);
-    expect(find.text('Все треки · 8 треков'), findsOneWidget);
+    expect(find.text('E'), findsNWidgets(2 + 4));
 
-    await tester.tap(find.text('Выбрать треки'));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pumpAndSettle();
-    expect(find.text('E'), findsNWidgets(1 + 4));
-
-    await tester.ensureVisible(find.text('Война'));
-    await tester.pump();
     await tester.tap(find.text('Война'));
-    await tester.pump();
-    await tester.ensureVisible(find.text('Кукушка'));
     await tester.pump();
     await tester.tap(find.text('Кукушка'));
     await tester.pump();
-    expect(find.text('Выбрано 6 из 8 треков'), findsOneWidget);
+    expect(find.text('Кино · 6 из 8 треков'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Скачать'));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
-
+    await _downloadAll(tester);
     final select = core.lastDownload!['select'] as List;
     expect(select, hasLength(1));
     expect((select.single as Map)['album'], '123');

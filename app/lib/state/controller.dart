@@ -31,6 +31,8 @@ class Controller extends ChangeNotifier {
   var version = '';
 
   final drafts = ValueNotifier<List<Draft>>(const []);
+  final selected = ValueNotifier<Draft?>(null);
+  final downloadsOpen = ValueNotifier(false);
 
   final _jobs = <int, Job>{};
   List<Job> get jobs => _jobs.values.toList().reversed.toList();
@@ -57,14 +59,18 @@ class Controller extends ChangeNotifier {
   int addLinks(String text) {
     final list = List.of(drafts.value);
     var added = 0;
+    Draft? first;
     for (final link in splitLinks(text)) {
       if (list.any((d) => d.link == link)) continue;
-      list.add(Draft(link));
+      final d = Draft(link);
+      first ??= d;
+      list.add(d);
       added++;
       send({'cmd': 'preview', 'link': link});
     }
     if (added > 0) {
       drafts.value = list;
+      selected.value = first;
     } else if (text.trim().isNotEmpty) {
       _notices.add(const Notice('Эти ссылки уже в подборке'));
     }
@@ -72,16 +78,23 @@ class Controller extends ChangeNotifier {
   }
 
   void removeDraft(Draft d) {
-    drafts.value = [
-      for (final x in drafts.value)
+    final old = drafts.value;
+    final i = old.indexOf(d);
+    final next = [
+      for (final x in old)
         if (x != d) x,
     ];
+    drafts.value = next;
+    if (selected.value == d) {
+      selected.value = next.isEmpty ? null : next[i.clamp(0, next.length - 1)];
+    }
     d.dispose();
   }
 
   void clearDrafts() {
     final old = drafts.value;
     drafts.value = const [];
+    selected.value = null;
     for (final d in old) {
       d.dispose();
     }
@@ -95,9 +108,13 @@ class Controller extends ChangeNotifier {
   }
 
   void downloadAll() {
+    var sent = false;
     for (final d in List.of(drafts.value)) {
+      if (!d.ready) continue;
       downloadDraft(d);
+      sent = true;
     }
+    if (sent) downloadsOpen.value = true;
   }
 
   void _loadAlbum(String id) => send({'cmd': 'album', 'album': id});
@@ -240,6 +257,8 @@ class Controller extends ChangeNotifier {
       d.dispose();
     }
     drafts.dispose();
+    selected.dispose();
+    downloadsOpen.dispose();
     stats.dispose();
     log.dispose();
     super.dispose();

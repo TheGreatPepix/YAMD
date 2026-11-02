@@ -5,95 +5,6 @@ import '../state/models.dart';
 import '../theme.dart';
 import 'widgets.dart';
 
-class QueuePanel extends StatelessWidget {
-  const QueuePanel({super.key, required this.c});
-
-  final Controller c;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final jobs = c.jobs;
-    final anyFinished = jobs.any((j) => j.finished);
-    final anyRunning = jobs.any((j) => !j.finished);
-
-    return Panel(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Text('Загрузки', style: text.titleMedium),
-              if (jobs.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Tag('${jobs.length}'),
-              ],
-              const Spacer(),
-              if (anyRunning)
-                TextButton.icon(
-                  onPressed: c.cancelAll,
-                  icon: const Icon(Icons.stop_rounded, size: 18),
-                  label: const Text('Остановить всё'),
-                ),
-              if (anyFinished)
-                TextButton.icon(
-                  onPressed: c.clearFinished,
-                  icon: const Icon(Icons.clear_all_rounded, size: 18),
-                  label: const Text('Убрать завершённые'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: jobs.isEmpty
-                ? const _Empty()
-                : ListView.separated(
-                    padding: const EdgeInsets.only(right: 8, bottom: 4),
-                    itemCount: jobs.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => JobCard(key: ValueKey(jobs[i].id), job: jobs[i], c: c),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(26),
-            ),
-            child: Icon(Icons.library_music_rounded, size: 40, color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          Text('Здесь появятся загрузки', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            'Соберите подборку и нажмите «Скачать всё»',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class JobCard extends StatefulWidget {
   const JobCard({super.key, required this.job, required this.c});
 
@@ -205,7 +116,7 @@ class _JobCardState extends State<JobCard> {
                                 ),
                               ),
                             ),
-                            for (final f in job.formats.take(2)) ...[
+                            for (final f in job.formats.take(1)) ...[
                               const SizedBox(width: 6),
                               Tag(f, color: f.startsWith('FLAC') ? context.status.accent : null),
                             ],

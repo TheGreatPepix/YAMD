@@ -240,6 +240,8 @@ String formatBytes(num n) {
   return '${(n / g).toStringAsFixed(2)} ГБ';
 }
 
+String ofTracks(int n) => '$n ${n % 10 == 1 && n % 100 != 11 ? 'трека' : 'треков'}';
+
 String tracksLabel(int n) {
   final mod10 = n % 10, mod100 = n % 100;
   final word = (mod10 == 1 && mod100 != 11)

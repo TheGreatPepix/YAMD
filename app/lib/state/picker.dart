@@ -152,6 +152,18 @@ class ArtistPicker extends ChangeNotifier {
 
   int get albumCount => _selected.length;
 
+  int pickedCount(String id) {
+    if (!_selected.contains(id)) return 0;
+    final album = albums.firstWhere((a) => a.id == id);
+    return _partial[id]?.length ?? album.count;
+  }
+
+  void setAlbum(String id, bool on) {
+    on ? _selected.add(id) : _selected.remove(id);
+    _partial.remove(id);
+    notifyListeners();
+  }
+
   int get trackCount {
     var n = 0;
     for (final a in albums) {
