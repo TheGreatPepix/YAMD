@@ -1,0 +1,247 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../core/core.dart';
+import '../desktop.dart';
+import 'draft.dart';
+import 'models.dart';
+import 'picker.dart';
+
+class Controller extends ChangeNotifier {
+  Controller(this.core, {Desktop? desktop}) : desktop = desktop ?? Desktop() {
+    _sub = core.events.listen(_receive);
+  }
+
+  final Core core;
+  final Desktop desktop;
+  late final StreamSubscription<Event> _sub;
+
+  final _notices = StreamController<Notice>.broadcast();
+  Stream<Notice> get notices => _notices.stream;
+
+  var ready = false;
+  String? fatal;
+
+  var account = const Account();
+  var dir = '';
+  var theme = ThemeChoice.dark;
+  var quality = Quality.lossless;
+  var concurrency = 4;
+  var version = '';
+
+  final drafts = ValueNotifier<List<Draft>>(const []);
+
+  final _jobs = <int, Job>{};
+  List<Job> get jobs => _jobs.values.toList().reversed.toList();
+
+  final stats = ValueNotifier(const Stats());
+
+  final log = ValueNotifier('');
+
+  bool get canDownload => account.status == AccountStatus.ok;
+
+  void start() => send({'cmd': 'ready'});
+
+  void send(Map<String, Object?> command) => core.send(command);
+
+  void login(String token) => send({'cmd': 'login', 'token': token.trim()});
+
+  void recheck() => send({'cmd': 'recheck'});
+
+  void logout() {
+    clearDrafts();
+    send({'cmd': 'logout'});
+  }
+
+  int addLinks(String text) {
+    final list = List.of(drafts.value);
+    var added = 0;
+    for (final link in splitLinks(text)) {
+      if (list.any((d) => d.link == link)) continue;
+      list.add(Draft(link));
+      added++;
+      send({'cmd': 'preview', 'link': link});
+    }
+    if (added > 0) {
+      drafts.value = list;
+    } else if (text.trim().isNotEmpty) {
+      _notices.add(const Notice('Эти ссылки уже в подборке'));
+    }
+    return added;
+  }
+
+  void removeDraft(Draft d) {
+    drafts.value = [
+      for (final x in drafts.value)
+        if (x != d) x,
+    ];
+    d.dispose();
+  }
+
+  void clearDrafts() {
+    final old = drafts.value;
+    drafts.value = const [];
+    for (final d in old) {
+      d.dispose();
+    }
+  }
+
+  void downloadDraft(Draft d) {
+    if (!d.ready) return;
+    final select = d.selection;
+    send({'cmd': 'download', 'link': d.link, if (select != null) 'select': select});
+    removeDraft(d);
+  }
+
+  void downloadAll() {
+    for (final d in List.of(drafts.value)) {
+      downloadDraft(d);
+    }
+  }
+
+  void _loadAlbum(String id) => send({'cmd': 'album', 'album': id});
+
+  void cancel(int id) => send({'cmd': 'cancel', 'id': id});
+
+  void cancelAll() => send({'cmd': 'cancel', 'id': 0});
+
+  void retry(int id) => send({'cmd': 'retry', 'id': id});
+
+  void remove(int id) => send({'cmd': 'remove', 'id': id});
+
+  void clearFinished() => send({'cmd': 'remove', 'id': 0});
+
+  void setTheme(ThemeChoice t) {
+    theme = t;
+    send({'cmd': 'prefs', 'theme': t.name});
+    notifyListeners();
+  }
+
+  void setDir(String d) {
+    dir = d;
+    send({'cmd': 'prefs', 'dir': d});
+    notifyListeners();
+  }
+
+  void setQuality(Quality q) {
+    quality = q;
+    send({'cmd': 'prefs', 'quality': q.name});
+    notifyListeners();
+  }
+
+  void setConcurrency(int n) {
+    concurrency = n;
+    send({'cmd': 'prefs', 'concurrency': n});
+    notifyListeners();
+  }
+
+  void openFolder(String path) => desktop.open(path);
+
+  void reveal(String file) => desktop.reveal(file);
+
+  void openLink(String url) => desktop.open(url);
+
+  void clearLog() => log.value = '';
+
+  void _appendLog(String text) {
+    var s = log.value + text;
+    const limit = 200000;
+    if (s.length > limit) {
+      var cut = s.length - limit * 3 ~/ 4;
+      final nl = s.indexOf('\n', cut);
+      if (nl >= 0) cut = nl + 1;
+      s = s.substring(cut);
+    }
+    log.value = s;
+  }
+
+  void _receive(Event ev) {
+    switch (ev['type']) {
+      case 'state':
+        dir = '${ev['dir'] ?? ''}';
+        theme = switch ('${ev['theme']}') {
+          'light' => ThemeChoice.light,
+          'dark' => ThemeChoice.dark,
+          _ => ThemeChoice.system,
+        };
+        quality = ev['quality'] == 'mp3' ? Quality.mp3 : Quality.lossless;
+        concurrency = (ev['concurrency'] as num?)?.toInt() ?? concurrency;
+        version = '${ev['version'] ?? ''}';
+        if (ev['log'] is String) log.value = ev['log'] as String;
+        ready = true;
+      case 'account':
+        account = Account.fromJson(ev);
+      case 'preview':
+        final p = Preview.fromJson(ev);
+
+        for (final d in drafts.value) {
+          if (d.link == p.link) d.apply(p, _loadAlbum);
+        }
+        return;
+      case 'job':
+        final id = (ev['id'] as num).toInt();
+        final existing = _jobs[id];
+        if (existing != null) {
+          existing.apply(ev);
+          return;
+        }
+        _jobs[id] = Job(id)..apply(ev);
+      case 'jobRemoved':
+        _jobs.remove((ev['id'] as num).toInt())?.dispose();
+      case 'albumTracks':
+        final id = '${ev['id']}';
+        final tracks = [
+          for (final t in (ev['tracks'] as List? ?? const []))
+            if (t is Map<String, dynamic>) TrackOption.fromJson(t),
+        ];
+        for (final d in drafts.value) {
+          final p = d.picker;
+          if (p == null || !p.isLoading(id)) continue;
+          ev['error'] != null ? p.setError(id, '${ev['error']}') : p.setTracks(id, tracks);
+        }
+        return;
+      case 'stats':
+        stats.value = Stats.fromJson(ev);
+        return;
+      case 'log':
+        _appendLog('${ev['text'] ?? ''}');
+        return;
+      case 'notice':
+        _notices.add(
+          Notice(
+            '${ev['message'] ?? ''}',
+            kind: switch (ev['kind']) {
+              'error' => NoticeKind.error,
+              'ok' => NoticeKind.ok,
+              _ => NoticeKind.info,
+            },
+          ),
+        );
+        return;
+      case 'fatal':
+        fatal = '${ev['message'] ?? ''}';
+      case 'coreExited':
+        fatal ??= 'Ядро остановилось (код ${ev['code']}).';
+      default:
+        return;
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    _notices.close();
+    for (final j in _jobs.values) {
+      j.dispose();
+    }
+    for (final d in drafts.value) {
+      d.dispose();
+    }
+    drafts.dispose();
+    stats.dispose();
+    log.dispose();
+    super.dispose();
+  }
+}

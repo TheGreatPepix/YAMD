@@ -1,0 +1,16 @@
+# Go
+/ymcore
+/ymcore.exe
+*.test
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
