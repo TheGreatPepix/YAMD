@@ -45,6 +45,7 @@ class _Header extends StatelessWidget {
     required this.explicit,
     required this.lines,
     this.action,
+    this.end = 0,
   });
 
   final Widget cover;
@@ -52,11 +53,12 @@ class _Header extends StatelessWidget {
   final bool explicit;
   final List<String> lines;
   final Widget? action;
+  final double end;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         cover,
@@ -100,6 +102,7 @@ class _Header extends StatelessWidget {
         if (action != null) action!,
       ],
     );
+    return Padding(padding: EdgeInsets.only(right: end), child: row);
   }
 }
 
@@ -136,11 +139,12 @@ class _ArtistViewState extends State<_ArtistView> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+      padding: const EdgeInsets.fromLTRB(28, 24, 0, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(
+            end: 28,
             cover: Cover(url: p.cover, size: 84, kind: ReleaseKind.artist),
             over: 'ИСПОЛНИТЕЛЬ',
             title: p.title,
@@ -165,7 +169,7 @@ class _ArtistViewState extends State<_ArtistView> {
           const SizedBox(height: 18),
           Expanded(
             child: GridView.builder(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.only(right: 28, bottom: 24),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 220,
                 mainAxisSpacing: 22,
@@ -356,11 +360,12 @@ class _AlbumView extends StatelessWidget {
     final album = picker.albums.first;
     final state = picker.albumState(album.id);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+      padding: const EdgeInsets.fromLTRB(28, 24, 0, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(
+            end: 28,
             cover: Cover(url: p.cover, size: 150, kind: ReleaseKind.album, radius: 16),
             over: ['АЛЬБОМ', if (p.year > 0) '${p.year}'].join(' · '),
             title: p.title,
@@ -377,7 +382,7 @@ class _AlbumView extends StatelessWidget {
           const SizedBox(height: 18),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.only(right: 28, bottom: 24),
               child: TrackChecklist(picker: picker, albumId: album.id, indent: 0),
             ),
           ),
