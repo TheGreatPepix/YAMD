@@ -48,7 +48,7 @@ class FakeCore implements Core {
         'theme': _theme,
         'quality': _quality,
         'concurrency': _concurrency,
-        'version': '2.0.0',
+        'version': '2.0.1',
       };
 
   @override

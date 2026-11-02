@@ -18,6 +18,8 @@ class Desktop {
   void reveal(String file) {
     if (Platform.isWindows) {
       Process.run('explorer.exe', ['/select,', file]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', ['-R', file]);
     } else {
       open(File(file).parent.path);
     }

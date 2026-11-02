@@ -44,7 +44,7 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.0.0');
+    expect(c.version, '2.0.1');
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
