@@ -95,7 +95,7 @@ class _JobCardState extends State<JobCard> {
                         const SizedBox(height: 10),
                         TweenAnimationBuilder<double>(
                           tween: Tween(end: frac ?? 0),
-                          duration: const Duration(milliseconds: 250),
+                          duration: motion(context, const Duration(milliseconds: 250)),
                           builder: (_, v, _) => LinearProgressIndicator(
                             value: frac == null ? null : v,
                             color: accent,
@@ -116,7 +116,7 @@ class _JobCardState extends State<JobCard> {
                                 ),
                               ),
                             ),
-                            for (final f in job.formats.take(1)) ...[
+                            if (formatsLabel(job.formats) case final f when f.isNotEmpty) ...[
                               const SizedBox(width: 6),
                               Tag(f, color: f.startsWith('FLAC') ? context.status.accent : null),
                             ],
@@ -130,15 +130,17 @@ class _JobCardState extends State<JobCard> {
                   if (job.tracks.length > 1)
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: motion(context, const Duration(milliseconds: 200)),
                       child: Icon(Icons.expand_more_rounded, color: scheme.onSurfaceVariant),
-                    ),
+                    )
+                  else
+                    const SizedBox(width: 24),
                 ],
               ),
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 240),
+            duration: motion(context, const Duration(milliseconds: 240)),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: _expanded && job.tracks.length > 1 ? _trackList() : const SizedBox(width: double.infinity),
@@ -303,7 +305,11 @@ class _TrackRow extends StatelessWidget {
       ),
     );
 
-    final tip = t.status == TrackStatus.error ? t.message : '';
+    final tip = t.status == TrackStatus.error
+        ? t.message
+        : t.path.isNotEmpty
+            ? 'Показать файл в папке'
+            : t.title;
     final tappable = t.path.isNotEmpty ? InkWell(onTap: () => onReveal(t.path), child: row) : row;
     return tip.isEmpty ? tappable : Tooltip(message: tip, child: tappable);
   }

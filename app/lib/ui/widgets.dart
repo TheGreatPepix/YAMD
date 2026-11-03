@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../state/models.dart';
 import '../theme.dart';
 
+Duration motion(BuildContext context, Duration d) =>
+    MediaQuery.maybeDisableAnimationsOf(context) == true ? Duration.zero : d;
+
 class BrandMark extends StatelessWidget {
   const BrandMark({super.key, this.size = 40});
 
@@ -137,7 +140,7 @@ class Cover extends StatelessWidget {
                 frameBuilder: (context, child, frame, sync) => sync
                     ? child
                     : AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
+                        duration: motion(context, const Duration(milliseconds: 250)),
                         child: frame == null ? placeholder : child,
                       ),
               ),
@@ -237,9 +240,48 @@ class TitleWithBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
+        Flexible(
+          child: Tooltip(
+            message: title,
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+          ),
+        ),
         if (explicit) ...[const SizedBox(width: 6), const ExplicitBadge()],
       ],
     );
   }
+}
+
+Future<bool> confirm(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String action,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final scheme = Theme.of(context).colorScheme;
+      return AlertDialog(
+        title: Text(title),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Text(body, style: TextStyle(color: scheme.onSurfaceVariant, height: 1.45)),
+        ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action),
+          ),
+        ],
+      );
+    },
+  );
+  return ok ?? false;
 }

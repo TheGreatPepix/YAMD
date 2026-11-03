@@ -428,6 +428,18 @@ func (c *Client) ResolveSelected(ctx context.Context, l Link, sel Selection) (*R
 		return r, nil
 	case l.Kind == KindArtist:
 		return c.resolveArtist(ctx, l.ArtistID, true, sel)
+	case l.Kind == KindPlaylist:
+		r, err := c.resolvePlaylist(ctx, l, true)
+		if err != nil {
+			return nil, err
+		}
+		var ids []string
+		for _, t := range sel {
+			ids = append(ids, t...)
+		}
+		r.Tracks = pick(r.Tracks, ids)
+		r.TrackCount = len(r.Tracks)
+		return r, nil
 	}
 	return c.Resolve(ctx, l, true)
 }

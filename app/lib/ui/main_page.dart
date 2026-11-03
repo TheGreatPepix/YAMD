@@ -1,4 +1,6 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/controller.dart';
 import '../state/draft.dart';
@@ -18,6 +20,8 @@ class MainPage extends StatelessWidget {
 
   final Controller c;
 
+  void _close() => c.downloadsOpen.value = false;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -28,46 +32,57 @@ class MainPage extends StatelessWidget {
           builder: (context, _) {
             final empty = c.drafts.value.isEmpty;
             final open = c.downloadsOpen.value;
-            return Stack(
-              children: [
-                Column(
-                  children: [
-                    _Header(c: c, withInput: !empty),
-                    Divider(height: 1, color: scheme.outlineVariant),
-                    Expanded(
-                      child: empty
-                          ? _Hero(c: c)
-                          : LayoutBuilder(
-                              builder: (context, box) => Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  SizedBox(width: box.maxWidth >= 1100 ? 340 : 280, child: SourceList(c: c)),
-                                  VerticalDivider(width: 1, color: scheme.outlineVariant),
-                                  Expanded(child: SourceDetail(c: c)),
-                                ],
-                              ),
-                            ),
+            return LayoutBuilder(
+              builder: (context, box) => Stack(
+                children: [
+                  ExcludeFocus(
+                    excluding: open,
+                    child: Column(
+                      children: [
+                        _Header(c: c, withInput: !empty, compact: box.maxWidth < 1080),
+                        Divider(height: 1, color: scheme.outlineVariant),
+                        Expanded(
+                          child: empty
+                              ? _Hero(c: c)
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    SizedBox(
+                                      width: box.maxWidth >= 1100 ? 340 : 280,
+                                      child: FocusTraversalGroup(child: SourceList(c: c)),
+                                    ),
+                                    VerticalDivider(width: 1, color: scheme.outlineVariant),
+                                    Expanded(
+                                      child: FocusTraversalGroup(child: SourceDetail(c: c)),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        if (!empty) _ActionBar(c: c),
+                      ],
                     ),
-                    if (!empty) _ActionBar(c: c),
+                  ),
+                  if (open) ...[
+                    Positioned.fill(
+                      top: 73,
+                      child: GestureDetector(
+                        onTap: _close,
+                        child: ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
+                      ),
+                    ),
+                    Positioned(
+                      top: 80,
+                      right: 12,
+                      bottom: 12,
+                      width: (box.maxWidth - 24).clamp(0, 440).toDouble(),
+                      child: CallbackShortcuts(
+                        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
+                        child: FocusScope(autofocus: true, child: DownloadsPanel(c: c)),
+                      ),
+                    ),
                   ],
-                ),
-                if (open) ...[
-                  Positioned.fill(
-                    top: 73,
-                    child: GestureDetector(
-                      onTap: () => c.downloadsOpen.value = false,
-                      child: ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
-                    ),
-                  ),
-                  Positioned(
-                    top: 80,
-                    right: 12,
-                    bottom: 12,
-                    width: 440,
-                    child: DownloadsPanel(c: c),
-                  ),
                 ],
-              ],
+              ),
             );
           },
         ),
@@ -77,10 +92,10 @@ class MainPage extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.c, required this.withInput});
+  const _Header({required this.c, required this.withInput, required this.compact});
 
   final Controller c;
-  final bool withInput;
+  final bool withInput, compact;
 
   @override
   Widget build(BuildContext context) {
@@ -91,13 +106,18 @@ class _Header extends StatelessWidget {
         child: Row(
           children: [
             const BrandMark(size: 34),
-            const SizedBox(width: 10),
-            Text('YAMD',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(width: 24),
+            if (!compact) ...[
+              const SizedBox(width: 10),
+              Text(
+                'YAMD',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+            SizedBox(width: compact ? 16 : 24),
             Expanded(
               child: withInput
-                  ? Center(
+                  ? Align(
+                      alignment: Alignment.centerLeft,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 560),
                         child: LinkInput(c: c),
@@ -105,7 +125,7 @@ class _Header extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
-            const SizedBox(width: 24),
+            SizedBox(width: compact ? 12 : 24),
             UpdateButton(c: c),
             DownloadsButton(c: c),
             const SizedBox(width: 6),
@@ -116,11 +136,11 @@ class _Header extends StatelessWidget {
             ),
             IconButton(
               tooltip: 'Настройки',
-              icon: const Icon(Icons.tune_rounded),
+              icon: const Icon(Icons.settings_rounded),
               onPressed: () => showSettingsDialog(context, c),
             ),
             const SizedBox(width: 6),
-            _AccountPill(c: c),
+            _AccountPill(c: c, compact: compact),
           ],
         ),
       ),
@@ -137,17 +157,17 @@ class _Hero extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     Widget point(String text) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(color: context.status.accent, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Text(text, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
-          ],
-        );
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: context.status.accent, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(text, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+      ],
+    );
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 72),
@@ -171,18 +191,6 @@ class _Hero extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 640),
               child: LinkInput(c: c, hero: true),
             ),
-            const SizedBox(height: 16),
-            const Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                Tag('Трек', icon: Icons.music_note_rounded),
-                Tag('Альбом', icon: Icons.album_rounded),
-                Tag('Плейлист', icon: Icons.queue_music_rounded),
-                Tag('Исполнитель', icon: Icons.person_rounded),
-              ],
-            ),
             const SizedBox(height: 36),
             Wrap(
               spacing: 32,
@@ -201,16 +209,21 @@ class _Hero extends StatelessWidget {
   }
 }
 
+String linksLabel(int n) {
+  final mod10 = n % 10, mod100 = n % 100;
+  if (mod10 == 1 && mod100 != 11) return '$n ссылка';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return '$n ссылки';
+  return '$n ссылок';
+}
+
 class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.c});
 
   final Controller c;
 
-  static String _sources(int n) {
-    final mod10 = n % 10, mod100 = n % 100;
-    if (mod10 == 1 && mod100 != 11) return '$n источник';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return '$n источника';
-    return '$n источников';
+  Future<void> _browse() async {
+    final path = await getDirectoryPath(initialDirectory: c.dir.isEmpty ? null : c.dir);
+    if (path != null) c.setDir(path);
   }
 
   @override
@@ -224,9 +237,13 @@ class _ActionBar extends StatelessWidget {
         final tracks = ready.fold(0, (n, d) => n + d.trackCount);
         final loading = drafts.where((d) => d.loading).length;
         final summary = [
-          if (ready.isNotEmpty) '${_sources(ready.length)} · ${tracksLabel(tracks)}' else 'Нечего скачивать',
+          if (ready.isNotEmpty)
+            '${linksLabel(ready.length)} · ${tracksLabel(tracks)}'
+          else
+            'Нечего скачивать',
           if (loading > 0) 'загружается $loading',
         ].join(' · ');
+        final lossless = c.quality == Quality.lossless;
         return Container(
           height: 76,
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -237,26 +254,71 @@ class _ActionBar extends StatelessWidget {
           child: Row(
             children: [
               Text(summary, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              const SizedBox(width: 14),
-              Tag(
-                c.quality == Quality.lossless ? 'FLAC' : 'MP3 320',
-                icon: Icons.graphic_eq_rounded,
-                color: context.status.accent,
-              ),
-              const SizedBox(width: 14),
-              Icon(Icons.folder_rounded, size: 16, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Tooltip(
-                  message: c.dir,
-                  child: Text(
-                    c.dir,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              const SizedBox(width: 10),
+              MenuAnchor(
+                alignmentOffset: const Offset(0, -4),
+                menuChildren: [
+                  for (final (q, label) in [
+                    (Quality.lossless, 'FLAC (без потерь)'),
+                    (Quality.mp3, 'MP3 320'),
+                  ])
+                    MenuItemButton(
+                      leadingIcon: Icon(c.quality == q ? Icons.check_rounded : null),
+                      onPressed: () => c.setQuality(q),
+                      child: Text(label),
+                    ),
+                ],
+                builder: (context, menu, _) => Tooltip(
+                  message: 'Качество',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => menu.isOpen ? menu.close() : menu.open(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Tag(
+                            lossless ? 'FLAC' : 'MP3 320',
+                            icon: Icons.graphic_eq_rounded,
+                            color: context.status.accent,
+                          ),
+                          Icon(Icons.expand_more_rounded, size: 18, color: scheme.onSurfaceVariant),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Tooltip(
+                  message: 'Изменить папку\n${c.dir}',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _browse,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.folder_rounded, size: 16, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              c.dir,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
               const SizedBox(width: 16),
               FilledButton.icon(
                 onPressed: ready.isEmpty ? null : c.downloadAll,
@@ -272,9 +334,25 @@ class _ActionBar extends StatelessWidget {
 }
 
 class _AccountPill extends StatelessWidget {
-  const _AccountPill({required this.c});
+  const _AccountPill({required this.c, required this.compact});
 
   final Controller c;
+  final bool compact;
+
+  Future<void> _logout(BuildContext context) async {
+    final running = c.running;
+    final drafts = c.drafts.value.length;
+    if (running > 0 || drafts > 0) {
+      final body = [
+        if (running > 0) 'Незавершённые загрузки остановятся: $running.',
+        if (drafts > 0) 'Подборка очистится: ${linksLabel(drafts)}.',
+        'Скачанные файлы останутся на диске.',
+      ].join(' ');
+      final ok = await confirm(context, title: 'Выйти из аккаунта?', body: body, action: 'Выйти');
+      if (!ok) return;
+    }
+    c.logout();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -282,10 +360,6 @@ class _AccountPill extends StatelessWidget {
     const shape = StadiumBorder();
     return MenuAnchor(
       alignmentOffset: const Offset(0, 6),
-      style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
-        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-      ),
       menuChildren: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -302,12 +376,12 @@ class _AccountPill extends StatelessWidget {
         ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.logout_rounded),
-          onPressed: c.logout,
+          onPressed: () => _logout(context),
           child: const Text('Выйти'),
         ),
       ],
       builder: (context, menu, _) => Tooltip(
-        message: 'Аккаунт',
+        message: compact ? c.account.displayName : 'Аккаунт',
         child: Material(
           color: scheme.surfaceContainerHigh,
           shape: shape,
@@ -316,20 +390,22 @@ class _AccountPill extends StatelessWidget {
             customBorder: shape,
             onTap: () => menu.isOpen ? menu.close() : menu.open(),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+              padding: EdgeInsets.fromLTRB(4, 4, compact ? 8 : 12, 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AccountAvatar(account: c.account, size: 30),
-                  const SizedBox(width: 10),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
-                    child: Text(
-                      c.account.displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                  if (!compact) ...[
+                    const SizedBox(width: 10),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(
+                        c.account.displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(width: 8),
                   const PlusBadge(),
                 ],

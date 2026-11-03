@@ -17,7 +17,7 @@ String draftSummary(Draft d) {
     if (pk.everything) return 'вся дискография · ${tracksLabel(pk.trackCount)}';
     return '${pk.albumCount} из ${ofReleases(pk.albums.length)} · ${tracksLabel(pk.trackCount)}';
   }
-  if (p.kind == ReleaseKind.album && pk != null) {
+  if (p.kind != ReleaseKind.artist && pk != null) {
     final total = pk.albums.first.count;
     final picked = pk.nothing
         ? 'ничего не выбрано'
@@ -51,19 +51,24 @@ class SourceList extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
               child: Row(
                 children: [
-                  Flexible(
-                    child: Text(
-                      'Подборка',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Подборка',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        Text(
+                          '  ·  ${drafts.length}',
+                          style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    '  ·  ${drafts.length}',
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
                   TextButton(onPressed: c.clearDrafts, child: const Text('Очистить')),
                 ],
               ),
@@ -112,7 +117,10 @@ class SourceRow extends StatelessWidget {
           color: selected ? scheme.surfaceContainerHigh : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: selected ? scheme.outlineVariant : Colors.transparent),
+            side: BorderSide(
+              color: selected ? context.status.accent.withValues(alpha: 0.7) : Colors.transparent,
+              width: 1.5,
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(

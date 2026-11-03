@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../state/controller.dart';
@@ -83,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
                   Panel(
                     padding: const EdgeInsets.all(24),
                     child: AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
+                      duration: motion(context, const Duration(milliseconds: 220)),
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.topCenter,
                       child:
@@ -91,19 +93,26 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.lock_outline_rounded, size: 14, color: scheme.onSurfaceVariant),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Токен хранится только на этом компьютере, зашифрованным (Windows DPAPI)',
-                          textAlign: TextAlign.center,
-                          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Icon(Icons.lock_outline_rounded, size: 14, color: scheme.onSurfaceVariant),
+                          ),
                         ),
-                      ),
-                    ],
+                        TextSpan(
+                          text: Platform.isWindows
+                              ? 'Токен хранится только на этом компьютере, зашифрованным (Windows DPAPI)'
+                              : 'Токен хранится только на этом компьютере, в файле настроек, '
+                                  'доступном только вашему пользователю',
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -150,21 +159,24 @@ class _LoginPageState extends State<LoginPage> {
           _Banner(icon: Icons.error_outline_rounded, color: scheme.error, text: acc.message),
         ],
         const SizedBox(height: 20),
-        FilledButton(
-          onPressed: checking ? null : _submit,
-          child: checking
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2, color: scheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text('Проверяю подписку…'),
-                  ],
-                )
-              : const Text('Войти'),
+        ListenableBuilder(
+          listenable: _token,
+          builder: (context, _) => FilledButton(
+            onPressed: checking || _token.text.trim().isEmpty ? null : _submit,
+            child: checking
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.2, color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('Проверяю подписку…'),
+                    ],
+                  )
+                : const Text('Войти'),
+          ),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(

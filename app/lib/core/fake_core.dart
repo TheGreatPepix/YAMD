@@ -3,7 +3,7 @@ import 'dart:async';
 import 'core.dart';
 
 class FakeCore implements Core {
-  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.0.3'});
+  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.0.4'});
 
   final Duration tick;
   final String latest;
@@ -49,7 +49,7 @@ class FakeCore implements Core {
         'theme': _theme,
         'quality': _quality,
         'concurrency': _concurrency,
-        'version': '2.0.3',
+        'version': '2.0.4',
       };
 
   @override
@@ -58,7 +58,7 @@ class FakeCore implements Core {
       case 'ready':
         _emit(_state());
         _emit({'type': 'account', 'status': 'none'});
-        if (latest != '2.0.3') _emit({..._update(), 'quiet': true});
+        if (latest != '2.0.4') _emit({..._update(), 'quiet': true});
       case 'checkUpdate':
         _later(tick, () => _emit(_update()));
       case 'applyUpdate':
@@ -144,7 +144,7 @@ class FakeCore implements Core {
                 {
                   'id': '$id${i + 1}',
                   'title': _titles[i % _titles.length],
-                  'artist': 'Кино',
+                  'artist': id.startsWith('playlist:') && i.isOdd ? 'Аквариум' : 'Кино',
                   'number': i + 1,
                   'explicit': i.isOdd,
                 },
@@ -176,13 +176,13 @@ class FakeCore implements Core {
 
   Map<String, Object?> _update() => {
         'type': 'update',
-        'current': '2.0.3',
+        'current': '2.0.4',
         'latest': latest,
         'page': 'https://github.com/TheGreatPepix/YMD/releases/tag/v$latest',
-        'notes': latest == '2.0.3' ? '' : 'Самообновление из релизов GitHub.',
+        'notes': latest == '2.0.4' ? '' : 'Самообновление из релизов GitHub.',
         'published': '02.11.2026',
-        'available': latest != '2.0.3',
-        'canApply': latest != '2.0.3',
+        'available': latest != '2.0.4',
+        'canApply': latest != '2.0.4',
       };
 
   static (String, String, String, int, int) _release(String link) {
@@ -233,6 +233,10 @@ class FakeCore implements Core {
         'count': count,
         'folder': kind == 'track' ? '' : (kind == 'album' ? '$artist - $title ($year)' : title),
         if (kind == 'artist') 'albums': _albums,
+        if (kind == 'playlist')
+          'albums': [
+            {'id': 'playlist:$link', 'title': title, 'count': count, 'type': 'album'},
+          ],
         if (kind == 'album') ...{
           'explicit': true,
           'albums': [
@@ -252,8 +256,9 @@ class FakeCore implements Core {
 
   static String _albumId(String link) => RegExp('/album/([0-9]+)').firstMatch(link)?.group(1) ?? '0';
 
-  static int _albumCount(String id) =>
-      (_albums.where((a) => a['id'] == id).firstOrNull?['count'] as int?) ?? 8;
+  static int _albumCount(String id) => id.startsWith('playlist:')
+      ? 6
+      : (_albums.where((a) => a['id'] == id).firstOrNull?['count'] as int?) ?? 8;
 
   void _download(String link, List? select) {
     var (kind, title, artist, year, count) = _release(link);

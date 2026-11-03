@@ -1,6 +1,10 @@
 import 'dart:io';
 
 class Desktop {
+  Desktop({this.args = const []});
+
+  final List<String> args;
+
   void open(String target) {
     if (Platform.isWindows) {
       if (target.startsWith('http')) {
@@ -24,4 +28,10 @@ class Desktop {
   }
 
   void quit() => exit(0);
+
+  Future<void> restart() async {
+    final exe = Platform.environment['APPIMAGE'] ?? Platform.resolvedExecutable;
+    await Process.start(exe, args, mode: ProcessStartMode.detached);
+    exit(0);
+  }
 }

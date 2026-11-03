@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ymd/app.dart';
@@ -6,12 +7,16 @@ import 'package:ymd/core/fake_core.dart';
 import 'package:ymd/state/controller.dart';
 import 'package:ymd/state/models.dart';
 
-Future<(FakeCore, Controller)> _open(WidgetTester tester, {String latest = '2.0.3'}) async {
+Future<(FakeCore, Controller)> _open(
+  WidgetTester tester, {
+  String latest = '2.0.4',
+  Duration tick = const Duration(milliseconds: 120),
+}) async {
   tester.view.physicalSize = const Size(1280, 860);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
-  final core = FakeCore(latest: latest);
+  final core = FakeCore(latest: latest, tick: tick);
   final controller = Controller(core);
   await tester.pumpWidget(YmdApp(controller: controller));
   await tester.pumpAndSettle();
@@ -20,6 +25,7 @@ Future<(FakeCore, Controller)> _open(WidgetTester tester, {String latest = '2.0.
 
 Future<void> _login(WidgetTester tester, String token) async {
   await tester.enterText(find.byType(TextField), token);
+  await tester.pump();
   await tester.tap(find.text('Войти'));
   await tester.pump(const Duration(milliseconds: 600));
   await tester.pumpAndSettle();
@@ -44,7 +50,7 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.0.3');
+    expect(c.version, '2.0.4');
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
@@ -86,7 +92,7 @@ void main() {
     expect(find.text('Что скачаем?'), findsNothing);
     expect(find.text('Группа крови'), findsWidgets);
     expect(find.text('Кино · 8 треков'), findsOneWidget);
-    expect(find.text('1 источник · 8 треков'), findsOneWidget);
+    expect(find.text('1 ссылка · 8 треков'), findsOneWidget);
 
     await _downloadAll(tester);
     expect(c.drafts.value, isEmpty);
@@ -126,18 +132,27 @@ void main() {
     expect(find.text('Кукушка'), findsWidgets);
     expect(find.text('Плейлист дня'), findsOneWidget);
     expect(find.text('Не удалось распознать ссылку.'), findsOneWidget);
-    expect(find.text('3 источника · 15 треков'), findsOneWidget);
+    expect(find.text('3 ссылки · 15 треков'), findsOneWidget);
 
     await tester.tap(find.text('Плейлист дня'));
     await tester.pumpAndSettle();
-    expect(find.text('Плейлист скачается целиком'), findsOneWidget);
+    expect(find.text('6 треков · выбрано 6'), findsOneWidget);
+    expect(find.text('Аквариум'), findsWidgets);
+
+    await tester.tap(find.text('Война'));
+    await tester.pump();
+    expect(find.text('6 треков · выбрано 5'), findsOneWidget);
 
     await _add(tester, 'https://music.yandex.ru/album/123');
     expect(c.drafts.value, hasLength(4));
+    expect(c.selected.value, c.drafts.value.first);
+    expect(find.text('Уже в подборке, открыл её'), findsOneWidget);
 
     await _downloadAll(tester);
     expect(c.jobs, hasLength(3));
     expect(c.drafts.value, hasLength(1));
+    final select = core.lastDownload?['select'] as List?;
+    expect((select?.single as Map)['tracks'], hasLength(5));
 
     await tester.pumpAndSettle(const Duration(seconds: 10));
     await core.close();
@@ -238,7 +253,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.0.3'), findsOneWidget);
+    expect(find.text('Версия 2.0.4'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();
@@ -255,6 +270,8 @@ void main() {
   testWidgets('новая версия предлагается при запуске', (tester) async {
     final (core, c) = await _open(tester, latest: '2.1.0');
 
+    expect(find.text('Доступна версия 2.1.0'), findsNothing);
+    await _login(tester, 'good-token');
     expect(find.text('Доступна версия 2.1.0'), findsOneWidget);
     expect(find.text('Самообновление из релизов GitHub.'), findsOneWidget);
 
@@ -266,6 +283,78 @@ void main() {
     expect(c.updateProgress.value, 1.0);
 
     await tester.pumpAndSettle(const Duration(seconds: 5));
+    await core.close();
+  });
+
+  testWidgets('очистку подборки можно отменить', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+    await _add(tester, 'https://music.yandex.ru/album/123 https://music.yandex.ru/album/1/track/5');
+    expect(c.drafts.value, hasLength(2));
+
+    await tester.tap(find.text('Очистить'));
+    await tester.pumpAndSettle();
+    expect(c.drafts.value, isEmpty);
+    expect(find.text('Подборка очищена'), findsOneWidget);
+
+    await tester.tap(find.text('Вернуть'));
+    await tester.pumpAndSettle();
+    expect(c.drafts.value, hasLength(2));
+    expect(find.text('Группа крови'), findsWidgets);
+
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+    await core.close();
+  });
+
+  testWidgets('карточку можно скачать отдельно, Esc закрывает загрузки', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+    await _add(tester, 'https://music.yandex.ru/album/123 https://music.yandex.ru/album/1/track/5');
+
+    await tester.tap(find.text('Скачать альбом'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(c.jobs, hasLength(1));
+    expect(c.drafts.value, hasLength(1));
+    expect(c.downloadsOpen.value, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(c.downloadsOpen.value, isFalse);
+
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+    await core.close();
+  });
+
+  testWidgets('выход во время загрузки нужно подтвердить', (tester) async {
+    final (core, c) = await _open(tester, tick: const Duration(seconds: 30));
+    await _login(tester, 'good-token');
+    await _add(tester, 'https://music.yandex.ru/album/123');
+    await _downloadAll(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+
+    Future<void> logout() async {
+      await tester.tap(find.text('Иван Петров'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Выйти'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(c.running, 1);
+      expect(find.text('Выйти из аккаунта?'), findsOneWidget);
+    }
+
+    await logout();
+    await tester.tap(find.text('Отмена'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(c.canDownload, isTrue);
+
+    await logout();
+    await tester.tap(find.widgetWithText(FilledButton, 'Выйти'));
+    await tester.pumpAndSettle();
+    expect(c.canDownload, isFalse);
+    expect(find.text('Войти'), findsOneWidget);
+
     await core.close();
   });
 }

@@ -16,11 +16,18 @@ String releasesLabel(int n) {
 }
 
 class TrackChecklist extends StatelessWidget {
-  const TrackChecklist({super.key, required this.picker, required this.albumId, this.indent = 40});
+  const TrackChecklist({
+    super.key,
+    required this.picker,
+    required this.albumId,
+    this.indent = 40,
+    this.showArtist = false,
+  });
 
   final ArtistPicker picker;
   final String albumId;
   final double indent;
+  final bool showArtist;
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +66,9 @@ class TrackChecklist extends StatelessWidget {
                     value: picker.trackSelected(albumId, t.id),
                     onChanged: (_) => picker.toggleTrack(albumId, t.id),
                   ),
-                  SizedBox(
-                    width: 22,
+                  Container(
+                    constraints: BoxConstraints(minWidth: MediaQuery.textScalerOf(context).scale(22)),
+                    padding: const EdgeInsets.only(right: 6),
                     child: Text(
                       t.number > 0 ? '${t.number}' : '',
                       style: TextStyle(
@@ -74,6 +82,19 @@ class TrackChecklist extends StatelessWidget {
                     child:
                         TitleWithBadge(t.title, explicit: t.explicit, style: const TextStyle(fontSize: 13)),
                   ),
+                  if (showArtist && t.artist.isNotEmpty)
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 10),
+                        child: Text(
+                          t.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ),
                   const SizedBox(width: 10),
                 ],
               ),

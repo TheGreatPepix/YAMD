@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../state/controller.dart';
 import '../state/draft.dart';
+import '../theme.dart';
 
 class LinkInput extends StatefulWidget {
   const LinkInput({super.key, required this.c, this.hero = false});
@@ -45,7 +46,9 @@ class _LinkInputState extends State<LinkInput> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = (data?.text ?? '').trim();
     if (text.isEmpty) return;
-    if (text.contains('\n') || splitLinks(text).length > 1) {
+    final links = splitLinks(text);
+    final link = links.any((l) => l.contains('yandex.') || l.contains('://'));
+    if (text.contains('\n') || links.length > 1 || (link && _input.text.trim().isEmpty)) {
       c.addLinks(text);
       return;
     }
@@ -60,6 +63,7 @@ class _LinkInputState extends State<LinkInput> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final accent = context.status.accent;
     final hero = widget.hero;
     return ListenableBuilder(
       listenable: _input,
@@ -117,7 +121,7 @@ class _LinkInputState extends State<LinkInput> {
             style: TextStyle(fontSize: hero ? 16 : 14),
             decoration: InputDecoration(
               hintText:
-                  hero ? 'music.yandex.ru/album/…' : 'Ссылки на треки, альбомы, плейлисты, исполнителей',
+                  hero ? 'Ссылка на трек, альбом, плейлист или исполнителя' : 'Ссылки на треки, альбомы, плейлисты, исполнителей',
               prefixIcon: Padding(
                 padding: EdgeInsets.only(left: hero ? 8 : 0),
                 child: const Icon(Icons.link_rounded),
@@ -130,11 +134,11 @@ class _LinkInputState extends State<LinkInput> {
               enabledBorder: OutlineInputBorder(
                 borderRadius: radius,
                 borderSide:
-                    BorderSide(color: hero ? scheme.primary : scheme.outlineVariant, width: hero ? 1.5 : 1),
+                    BorderSide(color: hero ? accent : scheme.outlineVariant, width: hero ? 1.5 : 1),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: radius,
-                borderSide: BorderSide(color: scheme.primary, width: 1.5),
+                borderSide: BorderSide(color: accent, width: 1.5),
               ),
             ),
           ),

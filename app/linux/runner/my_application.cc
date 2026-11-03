@@ -53,6 +53,7 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1240, 820);
+  gtk_widget_set_size_request(GTK_WIDGET(window), 900, 600);
 
   g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
   if (exe != nullptr) {

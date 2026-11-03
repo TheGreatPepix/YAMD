@@ -3,13 +3,14 @@ package gui
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"ymd/internal/yam"
 )
 
-const Version = "2.0.3"
+const Version = "2.0.4"
 
 const (
 	accNone     = "none"
@@ -267,14 +268,23 @@ func (g *App) preview(link string) {
 			g.emit(previewEvent{Type: "preview", Link: link, Status: "error", Kind: string(l.Kind), Message: err.Error()})
 			return
 		}
+		albums := albumItems(rel.Albums)
+		if rel.Kind == yam.KindPlaylist && rel.TrackCount > 0 {
+			albums = []albumItem{{
+				ID: playlistPrefix + link, Title: rel.Title, Count: rel.TrackCount, Type: "album",
+				Cover: yam.CoverURL(rel.Cover, "100x100"),
+			}}
+		}
 		g.emit(previewEvent{
 			Type: "preview", Link: link, Status: "ok", Kind: string(rel.Kind),
 			Title: rel.Title, Artist: rel.Artist, Year: rel.Year,
 			Cover: yam.CoverURL(rel.Cover, "400x400"), Count: rel.TrackCount,
-			Folder: rel.Folder(), Albums: albumItems(rel.Albums), Explicit: rel.Explicit,
+			Folder: rel.Folder(), Albums: albums, Explicit: rel.Explicit,
 		})
 	}()
 }
+
+const playlistPrefix = "playlist:"
 
 type albumItem struct {
 	Explicit bool   `json:"explicit,omitempty"`
@@ -306,6 +316,25 @@ type albumTrack struct {
 	Disc     int    `json:"disc"`
 }
 
+func (g *App) listTracks(ctx context.Context, c *yam.Client, id string) ([]yam.Track, error) {
+	link, ok := strings.CutPrefix(id, playlistPrefix)
+	if !ok {
+		return c.AlbumTracks(ctx, id)
+	}
+	l, err := yam.ParseLink(link)
+	if err != nil {
+		return nil, err
+	}
+	rel, err := c.Resolve(ctx, l, true)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rel.Tracks {
+		rel.Tracks[i].Number = i + 1
+	}
+	return rel.Tracks, nil
+}
+
 func (g *App) albumTracks(id string) {
 	g.mu.Lock()
 	token := g.token
@@ -316,7 +345,7 @@ func (g *App) albumTracks(id string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		tracks, err := yam.New(token).AlbumTracks(ctx, id)
+		tracks, err := g.listTracks(ctx, yam.New(token), id)
 		if err != nil {
 			g.emit(map[string]any{"type": "albumTracks", "id": id, "error": err.Error()})
 			return

@@ -240,13 +240,32 @@ class UpdateInfo {
 }
 
 class Notice {
-  const Notice(this.message, {this.kind = NoticeKind.info});
+  const Notice(this.message, {this.kind = NoticeKind.info, this.action = '', this.onAction});
 
   final String message;
   final NoticeKind kind;
+  final String action;
+  final VoidCallback? onAction;
 }
 
 enum NoticeKind { info, ok, error }
+
+String formatsLabel(Set<String> formats) {
+  if (formats.length <= 1) return formats.firstOrNull ?? '';
+  final flac = formats.where((f) => f.startsWith('FLAC')).toList();
+  if (flac.length < formats.length) return flac.isEmpty ? 'MP3' : 'FLAC и MP3';
+  (int, double) rank(String f) {
+    final parts = f.replaceFirst('FLAC', '').trim().split('/');
+    return (int.tryParse(parts.first) ?? 0, parts.length > 1 ? double.tryParse(parts[1]) ?? 0 : 0);
+  }
+
+  flac.sort((a, b) {
+    final (ab, ar) = rank(a);
+    final (bb, br) = rank(b);
+    return ab != bb ? ab.compareTo(bb) : ar.compareTo(br);
+  });
+  return 'FLAC до ${flac.last.replaceFirst('FLAC', '').trim()}';
+}
 
 String formatBytes(num n) {
   const k = 1024.0, m = k * 1024, g = m * 1024;

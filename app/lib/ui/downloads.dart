@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/controller.dart';
 import '../state/models.dart';
 import 'queue.dart';
+import 'widgets.dart';
 
 class DownloadsButton extends StatelessWidget {
   const DownloadsButton({super.key, required this.c});
@@ -102,6 +103,17 @@ class DownloadsPanel extends StatelessWidget {
 
   final Controller c;
 
+  Future<void> _stopAll(BuildContext context) async {
+    final ok = await confirm(
+      context,
+      title: 'Остановить все загрузки?',
+      body: 'Незавершённые задания: ${c.running}. Готовые треки останутся, '
+          'а кнопка «Повторить» докачает остальное.',
+      action: 'Остановить',
+    );
+    if (ok) c.cancelAll();
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -141,6 +153,8 @@ class DownloadsPanel extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             line,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 13,
                               color: scheme.onSurfaceVariant,
@@ -150,8 +164,6 @@ class DownloadsPanel extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (anyRunning)
-                      OutlinedButton(onPressed: c.cancelAll, child: const Text('Остановить всё')),
                     IconButton(
                       tooltip: 'Закрыть',
                       icon: const Icon(Icons.close_rounded),
@@ -179,12 +191,24 @@ class DownloadsPanel extends StatelessWidget {
                         itemBuilder: (_, i) => JobCard(key: ValueKey(jobs[i].id), job: jobs[i], c: c),
                       ),
               ),
-              if (anyFinished)
+              if (anyRunning || anyFinished)
                 Container(
                   decoration: BoxDecoration(border: Border(top: BorderSide(color: scheme.outlineVariant))),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  alignment: Alignment.centerRight,
-                  child: TextButton(onPressed: c.clearFinished, child: const Text('Убрать завершённые')),
+                  child: Row(
+                    children: [
+                      if (anyRunning)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(foregroundColor: scheme.error),
+                          onPressed: () => _stopAll(context),
+                          icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                          label: const Text('Остановить всё'),
+                        ),
+                      const Spacer(),
+                      if (anyFinished)
+                        TextButton(onPressed: c.clearFinished, child: const Text('Убрать завершённые')),
+                    ],
+                  ),
                 ),
             ],
           );

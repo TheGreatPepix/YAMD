@@ -43,14 +43,14 @@ class Draft extends ChangeNotifier {
         ? (ArtistPicker(p.albums, load: load)..addListener(notifyListeners))
         : null;
     final pk = picker;
-    if (pk != null && p.kind == ReleaseKind.album) pk.toggleExpanded(pk.albums.first.id);
+    if (pk != null && p.kind != ReleaseKind.artist) pk.toggleExpanded(pk.albums.first.id);
     notifyListeners();
   }
 
   void togglePicker() {
     pickerOpen = !pickerOpen;
     final p = picker;
-    if (pickerOpen && p != null && preview.kind == ReleaseKind.album) {
+    if (pickerOpen && p != null && preview.kind != ReleaseKind.artist) {
       final id = p.albums.first.id;
       if (!p.isExpanded(id)) p.toggleExpanded(id);
     }

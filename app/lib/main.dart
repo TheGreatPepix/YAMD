@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'core/core.dart';
 import 'core/fake_core.dart';
+import 'desktop.dart';
 import 'state/controller.dart';
 
 Future<void> main(List<String> args) async {
@@ -17,7 +18,7 @@ Future<void> main(List<String> args) async {
     final path = Platform.environment['YMCORE'] ?? ProcessCore.beside(exe);
     core = path == null ? _MissingCore() : await ProcessCore.start(path);
   }
-  runApp(YmdApp(controller: Controller(core)));
+  runApp(YmdApp(controller: Controller(core, desktop: Desktop(args: args))));
 }
 
 class _MissingCore implements Core {

@@ -4,8 +4,11 @@ const brandYellow = Color(0xFFFFD43B);
 const brandOrange = Color(0xFFFF9E1B);
 
 const plusGradient = LinearGradient(
-  colors: [Color(0xFFFF5C4D), Color(0xFFEB469F), Color(0xFF8341EF), Color(0xFF3F68F9)],
+  colors: [Color(0xFFD93A2B), Color(0xFFC92F84), Color(0xFF8341EF), Color(0xFF3F68F9)],
 );
+
+const uiFont = 'Segoe UI Variable Text';
+const uiFontFallback = ['Segoe UI', 'Roboto', 'Noto Sans'];
 
 const brandGradient = LinearGradient(
   begin: Alignment.topLeft,
@@ -76,18 +79,19 @@ ThemeData buildTheme(Brightness brightness) {
           outlineVariant: const Color(0xFFE2E2E8),
         );
 
+  final accent = dark ? brandYellow : const Color(0xFF8A6100);
   final theme = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     brightness: brightness,
     scaffoldBackgroundColor: scheme.surface,
-    fontFamily: 'Segoe UI Variable Text',
-    fontFamilyFallback: const ['Segoe UI', 'Roboto', 'Noto Sans'],
+    fontFamily: uiFont,
+    fontFamilyFallback: uiFontFallback,
     extensions: [
       StatusColors(
         success: dark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A),
         warning: dark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
-        accent: dark ? brandYellow : const Color(0xFF8A6100),
+        accent: accent,
       ),
     ],
     visualDensity: VisualDensity.standard,
@@ -97,7 +101,12 @@ ThemeData buildTheme(Brightness brightness) {
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 22),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(
+          fontFamily: uiFont,
+          fontFamilyFallback: uiFontFallback,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
@@ -148,18 +157,23 @@ ThemeData buildTheme(Brightness brightness) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+        borderSide: BorderSide(color: accent, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      width: 460,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    ),
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+      ),
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: scheme.surfaceContainerHigh,

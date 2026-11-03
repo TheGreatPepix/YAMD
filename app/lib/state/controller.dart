@@ -53,6 +53,10 @@ class Controller extends ChangeNotifier {
 
   bool get downloading => _jobs.values.any((j) => !j.finished);
 
+  int get running => _jobs.values.where((j) => !j.finished).length;
+
+  void restart() => desktop.restart();
+
   void start() => send({'cmd': 'ready'});
 
   void send(Map<String, Object?> command) => core.send(command);
@@ -62,16 +66,20 @@ class Controller extends ChangeNotifier {
   void recheck() => send({'cmd': 'recheck'});
 
   void logout() {
-    clearDrafts();
+    _dropDrafts();
     send({'cmd': 'logout'});
   }
 
   int addLinks(String text) {
     final list = List.of(drafts.value);
     var added = 0;
-    Draft? first;
+    Draft? first, existing;
     for (final link in splitLinks(text)) {
-      if (list.any((d) => d.link == link)) continue;
+      final known = list.where((d) => d.link == link).firstOrNull;
+      if (known != null) {
+        existing ??= known;
+        continue;
+      }
       final d = Draft(link);
       first ??= d;
       list.add(d);
@@ -81,13 +89,68 @@ class Controller extends ChangeNotifier {
     if (added > 0) {
       drafts.value = list;
       selected.value = first;
-    } else if (text.trim().isNotEmpty) {
-      _notices.add(const Notice('Эти ссылки уже в подборке'));
+    } else if (existing != null) {
+      selected.value = existing;
+      _notices.add(const Notice('Уже в подборке, открыл её'));
     }
     return added;
   }
 
-  void removeDraft(Draft d) {
+  List<Draft> _trash = const [];
+
+  void _flushTrash() {
+    for (final d in _trash) {
+      d.dispose();
+    }
+    _trash = const [];
+  }
+
+  void _discard(List<Draft> removed, String message) {
+    final before = drafts.value;
+    final was = selected.value;
+    _flushTrash();
+    _trash = removed;
+    final next = [
+      for (final x in before)
+        if (!removed.contains(x)) x,
+    ];
+    drafts.value = next;
+    if (was == null || removed.contains(was)) {
+      final i = was == null ? 0 : before.indexOf(was);
+      selected.value = next.isEmpty ? null : next[i.clamp(0, next.length - 1)];
+    }
+    _notices.add(Notice(message, action: 'Вернуть', onAction: () => _restore(removed, before, was)));
+  }
+
+  void _restore(List<Draft> removed, List<Draft> before, Draft? was) {
+    if (!identical(_trash, removed)) return;
+    _trash = const [];
+    final current = drafts.value;
+    final links = {for (final d in current) d.link};
+    final back = [
+      for (final d in removed)
+        if (!links.contains(d.link)) d,
+    ];
+    for (final d in removed) {
+      if (!back.contains(d)) d.dispose();
+    }
+    drafts.value = [
+      for (final d in before)
+        if (back.contains(d) || current.contains(d)) d,
+      for (final d in current)
+        if (!before.contains(d)) d,
+    ];
+    selected.value = back.contains(was) ? was : (back.firstOrNull ?? selected.value);
+  }
+
+  void removeDraft(Draft d) => _discard([d], 'Убрано из подборки');
+
+  void clearDrafts() {
+    if (drafts.value.isEmpty) return;
+    _discard(List.of(drafts.value), 'Подборка очищена');
+  }
+
+  void _take(Draft d) {
     final old = drafts.value;
     final i = old.indexOf(d);
     final next = [
@@ -101,10 +164,11 @@ class Controller extends ChangeNotifier {
     d.dispose();
   }
 
-  void clearDrafts() {
+  void _dropDrafts() {
     final old = drafts.value;
     drafts.value = const [];
     selected.value = null;
+    _flushTrash();
     for (final d in old) {
       d.dispose();
     }
@@ -114,17 +178,14 @@ class Controller extends ChangeNotifier {
     if (!d.ready) return;
     final select = d.selection;
     send({'cmd': 'download', 'link': d.link, if (select != null) 'select': select});
-    removeDraft(d);
+    _take(d);
+    downloadsOpen.value = true;
   }
 
   void downloadAll() {
-    var sent = false;
     for (final d in List.of(drafts.value)) {
-      if (!d.ready) continue;
-      downloadDraft(d);
-      sent = true;
+      if (d.ready) downloadDraft(d);
     }
-    if (sent) downloadsOpen.value = true;
   }
 
   void _loadAlbum(String id) => send({'cmd': 'album', 'album': id});
@@ -242,7 +303,7 @@ class Controller extends ChangeNotifier {
       case 'preview':
         final p = Preview.fromJson(ev);
 
-        for (final d in drafts.value) {
+        for (final d in [...drafts.value, ..._trash]) {
           if (d.link == p.link) d.apply(p, _loadAlbum);
         }
         return;
@@ -262,7 +323,7 @@ class Controller extends ChangeNotifier {
           for (final t in (ev['tracks'] as List? ?? const []))
             if (t is Map<String, dynamic>) TrackOption.fromJson(t),
         ];
-        for (final d in drafts.value) {
+        for (final d in [...drafts.value, ..._trash]) {
           final p = d.picker;
           if (p == null || !p.isLoading(id)) continue;
           ev['error'] != null ? p.setError(id, '${ev['error']}') : p.setTracks(id, tracks);
@@ -314,7 +375,7 @@ class Controller extends ChangeNotifier {
     for (final j in _jobs.values) {
       j.dispose();
     }
-    for (final d in drafts.value) {
+    for (final d in [...drafts.value, ..._trash]) {
       d.dispose();
     }
     drafts.dispose();
