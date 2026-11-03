@@ -3,7 +3,7 @@ import 'dart:async';
 import 'core.dart';
 
 class FakeCore implements Core {
-  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.0.4'});
+  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.1.0'});
 
   final Duration tick;
   final String latest;
@@ -49,7 +49,7 @@ class FakeCore implements Core {
         'theme': _theme,
         'quality': _quality,
         'concurrency': _concurrency,
-        'version': '2.0.4',
+        'version': '2.1.0',
       };
 
   @override
@@ -58,7 +58,7 @@ class FakeCore implements Core {
       case 'ready':
         _emit(_state());
         _emit({'type': 'account', 'status': 'none'});
-        if (latest != '2.0.4') _emit({..._update(), 'quiet': true});
+        if (latest != '2.1.0') _emit({..._update(), 'quiet': true});
       case 'checkUpdate':
         _later(tick, () => _emit(_update()));
       case 'applyUpdate':
@@ -132,6 +132,8 @@ class FakeCore implements Core {
       case 'download':
         lastDownload = c;
         _download('${c['link']}', c['select'] as List?);
+      case 'search':
+        _search(c);
       case 'album':
         final id = '${c['album']}';
         final count = _albumCount(id);
@@ -176,13 +178,13 @@ class FakeCore implements Core {
 
   Map<String, Object?> _update() => {
         'type': 'update',
-        'current': '2.0.4',
+        'current': '2.1.0',
         'latest': latest,
         'page': 'https://github.com/TheGreatPepix/YMD/releases/tag/v$latest',
-        'notes': latest == '2.0.4' ? '' : 'Самообновление из релизов GitHub.',
+        'notes': latest == '2.1.0' ? '' : 'Самообновление из релизов GitHub.',
         'published': '02.11.2026',
-        'available': latest != '2.0.4',
-        'canApply': latest != '2.0.4',
+        'available': latest != '2.1.0',
+        'canApply': latest != '2.1.0',
       };
 
   static (String, String, String, int, int) _release(String link) {
@@ -206,6 +208,91 @@ class FakeCore implements Core {
     'Легенда',
     'Печаль',
   ];
+
+  static const _web = 'https://music.yandex.ru';
+
+  static Map<String, Object?> _hit(String kind, int i) => switch (kind) {
+        'track' => {
+            'kind': 'track',
+            'id': '${500 + i}',
+            'title': _titles[i % _titles.length],
+            'artist': 'Кино',
+            'album': _albums[i % _albums.length]['title'],
+            'year': 1988,
+            'duration': 180 + i * 7,
+            'explicit': i == 1,
+            'link': '$_web/album/1/track/${500 + i}',
+          },
+        'album' => {
+            'kind': 'album',
+            'id': '${10 + i}',
+            'title': '${_albums[i % _albums.length]['title']}${i < _albums.length ? '' : ' $i'}',
+            'artist': 'Кино',
+            'year': 1988 + i,
+            'count': 8,
+            'type': _albums[i % _albums.length]['type'],
+            'link': '$_web/album/${10 + i}',
+          },
+        'artist' => {
+            'kind': 'artist',
+            'id': '${1 + i}',
+            'title': i == 0 ? 'Кино' : 'Кино $i',
+            'count': 146 - i,
+            'link': '$_web/artist/${1 + i}',
+          },
+        _ => {
+            'kind': 'playlist',
+            'id': 'me/${3 + i}',
+            'title': i == 0 ? 'Плейлист дня' : 'Плейлист $i',
+            'artist': 'Яндекс Музыка',
+            'count': 6,
+            'link': '$_web/users/me/playlists/${3 + i}',
+          },
+      };
+
+  void _search(Map<String, Object?> c) {
+    final query = '${c['query']}';
+    final kind = '${c['kind'] ?? ''}';
+    final page = c['page'] as int? ?? 0;
+    final event = <String, Object?>{
+      'type': 'search',
+      'seq': c['seq'],
+      'query': query,
+      'kind': kind,
+      'page': page,
+    };
+    _later(const Duration(milliseconds: 200), () {
+      if (query == 'ошибка') {
+        _emit({...event, 'status': 'error', 'message': 'нет связи'});
+        return;
+      }
+      if (query == 'пусто') {
+        _emit({...event, 'status': 'ok', 'sections': {}});
+        return;
+      }
+      const totals = {'track': 25, 'album': 12, 'artist': 3, 'playlist': 4};
+      const perAll = {'track': 20, 'album': 10, 'artist': 10, 'playlist': 4};
+      Map<String, Object?> section(String k, int per) {
+        final total = totals[k]!;
+        final from = page * per;
+        return {
+          'total': total,
+          'more': from + per < total,
+          'hits': [for (var i = from; i < total && i < from + per; i++) _hit(k, i)],
+        };
+      }
+
+      _emit({
+        ...event,
+        'status': 'ok',
+        if (query == 'кина') 'corrected': 'кино',
+        if (kind.isEmpty) 'best': _hit('artist', 0),
+        'sections': kind.isEmpty
+            ? {for (final k in totals.keys) k: section(k, perAll[k]!)}
+            : {kind: section(kind, 10)},
+      });
+    });
+  }
 
   void _preview(String link) {
     if (link.isEmpty) return;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../state/controller.dart';
 import '../state/draft.dart';
+import '../state/search.dart';
 import '../theme.dart';
 
 class LinkInput extends StatefulWidget {
@@ -16,30 +17,47 @@ class LinkInput extends StatefulWidget {
 }
 
 class _LinkInputState extends State<LinkInput> {
-  final _input = TextEditingController();
   final _focus = FocusNode();
 
   Controller get c => widget.c;
+  TextEditingController get _input => c.search.input;
 
   @override
   void dispose() {
-    _input.dispose();
     _focus.dispose();
     super.dispose();
   }
 
   void _submit() {
     final text = _input.text;
-    _input.clear();
     if (text.trim().isEmpty) return;
+    if (!looksLikeLinks(text)) {
+      c.search.run(text);
+      return;
+    }
+    _input.clear();
+    c.search.close();
     c.addLinks(text);
+    _focus.requestFocus();
+  }
+
+  void _clear() {
+    _input.clear();
+    c.search.close();
     _focus.requestFocus();
   }
 
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text ?? '';
-    if (text.trim().isNotEmpty) c.addLinks(text);
+    final text = (data?.text ?? '').trim();
+    if (text.isEmpty) return;
+    if (looksLikeLinks(text)) {
+      c.addLinks(text);
+      return;
+    }
+    _input.text = text;
+    _input.selection = TextSelection.collapsed(offset: text.length);
+    c.search.run(text);
   }
 
   Future<void> _pasteInline() async {
@@ -47,8 +65,8 @@ class _LinkInputState extends State<LinkInput> {
     final text = (data?.text ?? '').trim();
     if (text.isEmpty) return;
     final links = splitLinks(text);
-    final link = links.any((l) => l.contains('yandex.') || l.contains('://'));
-    if (text.contains('\n') || links.length > 1 || (link && _input.text.trim().isEmpty)) {
+    final link = looksLikeLinks(text);
+    if (link && (text.contains('\n') || links.length > 1 || _input.text.trim().isEmpty)) {
       c.addLinks(text);
       return;
     }
@@ -68,15 +86,30 @@ class _LinkInputState extends State<LinkInput> {
     return ListenableBuilder(
       listenable: _input,
       builder: (context, _) {
-        final empty = _input.text.trim().isEmpty;
+        final text = _input.text.trim();
+        final empty = text.isEmpty;
+        final link = looksLikeLinks(text);
         final Widget action = hero
             ? Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                   onPressed: empty ? _paste : _submit,
-                  icon: Icon(empty ? Icons.content_paste_rounded : Icons.add_rounded, size: 18),
-                  label: Text(empty ? 'Вставить' : 'Добавить'),
+                  icon: Icon(
+                    empty
+                        ? Icons.content_paste_rounded
+                        : link
+                        ? Icons.add_rounded
+                        : Icons.search_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    empty
+                        ? 'Вставить'
+                        : link
+                        ? 'Добавить'
+                        : 'Найти',
+                  ),
                 ),
               )
             : Padding(
@@ -86,6 +119,12 @@ class _LinkInputState extends State<LinkInput> {
                         tooltip: 'Вставить',
                         icon: const Icon(Icons.content_paste_rounded, size: 20),
                         onPressed: _paste,
+                      )
+                    : !link
+                    ? IconButton(
+                        tooltip: 'Очистить',
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: _clear,
                       )
                     : IconButton.filled(
                         tooltip: 'Добавить',
@@ -103,42 +142,49 @@ class _LinkInputState extends State<LinkInput> {
                       ),
               );
         final radius = BorderRadius.circular(hero ? 16 : 12);
-        return Actions(
-          actions: {
-            PasteTextIntent: CallbackAction<PasteTextIntent>(
-              onInvoke: (_) {
-                _pasteInline();
-                return null;
-              },
-            ),
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (!empty) _clear();
+            },
           },
-          child: TextField(
-            controller: _input,
-            focusNode: _focus,
-            autofocus: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-            style: TextStyle(fontSize: hero ? 16 : 14),
-            decoration: InputDecoration(
-              hintText:
-                  hero ? 'Ссылка на трек, альбом, плейлист или исполнителя' : 'Ссылки на треки, альбомы, плейлисты, исполнителей',
-              prefixIcon: Padding(
-                padding: EdgeInsets.only(left: hero ? 8 : 0),
-                child: const Icon(Icons.link_rounded),
+          child: Actions(
+            actions: {
+              PasteTextIntent: CallbackAction<PasteTextIntent>(
+                onInvoke: (_) {
+                  _pasteInline();
+                  return null;
+                },
               ),
-              suffixIcon: action,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: hero ? 22 : 12),
-              isDense: !hero,
-              fillColor: hero ? scheme.surfaceContainerHigh : scheme.surfaceContainer,
-              border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: radius,
-                borderSide:
-                    BorderSide(color: hero ? accent : scheme.outlineVariant, width: hero ? 1.5 : 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: radius,
-                borderSide: BorderSide(color: accent, width: 1.5),
+            },
+            child: TextField(
+              controller: _input,
+              focusNode: _focus,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _submit(),
+              style: TextStyle(fontSize: hero ? 16 : 14),
+              decoration: InputDecoration(
+                hintText: hero
+                    ? 'Ссылка или название трека, альбома, исполнителя'
+                    : 'Ссылки или поиск по Яндекс Музыке',
+                prefixIcon: Padding(
+                  padding: EdgeInsets.only(left: hero ? 8 : 0),
+                  child: Icon(link ? Icons.link_rounded : Icons.search_rounded),
+                ),
+                suffixIcon: action,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: hero ? 22 : 12),
+                isDense: !hero,
+                fillColor: hero ? scheme.surfaceContainerHigh : scheme.surfaceContainer,
+                border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(color: hero ? accent : scheme.outlineVariant, width: hero ? 1.5 : 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: radius,
+                  borderSide: BorderSide(color: accent, width: 1.5),
+                ),
               ),
             ),
           ),

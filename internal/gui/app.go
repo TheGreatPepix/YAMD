@@ -10,7 +10,7 @@ import (
 	"ymd/internal/yam"
 )
 
-const Version = "2.0.4"
+const Version = "2.1.0"
 
 const (
 	accNone     = "none"
@@ -32,6 +32,8 @@ type App struct {
 	session *yam.Session
 	account accountEvent
 	checkID int
+
+	searchCancel context.CancelFunc
 }
 
 type accountEvent struct {
@@ -148,6 +150,10 @@ func (g *App) logout() {
 	g.mu.Lock()
 	g.checkID++
 	g.token, g.session = "", nil
+	if g.searchCancel != nil {
+		g.searchCancel()
+		g.searchCancel = nil
+	}
 	_ = g.cfg.setToken("")
 	err := g.cfg.save()
 	g.mu.Unlock()

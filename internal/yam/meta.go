@@ -52,6 +52,7 @@ type apiAlbum struct {
 	Genre      string      `json:"genre"`
 	TrackCount int         `json:"trackCount"`
 	Type       string      `json:"type"`
+	MetaType   string      `json:"metaType"`
 	Warning    string      `json:"contentWarning"`
 	CoverURI   string      `json:"coverUri"`
 	Artists    []apiArtist `json:"artists"`

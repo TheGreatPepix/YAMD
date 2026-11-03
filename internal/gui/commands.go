@@ -19,6 +19,10 @@ type uiCommand struct {
 	Concurrency int    `json:"concurrency"`
 	ID          int    `json:"id"`
 	Album       string `json:"album"`
+	Query       string `json:"query"`
+	Kind        string `json:"kind"`
+	Page        int    `json:"page"`
+	Seq         int    `json:"seq"`
 	Select      []struct {
 		Album  string   `json:"album"`
 		Tracks []string `json:"tracks"`
@@ -69,6 +73,8 @@ func (g *App) onMessage(message string) {
 		g.startDownload(strings.TrimSpace(c.Link), strings.TrimSpace(c.Dir), sel)
 	case "album":
 		g.albumTracks(c.Album)
+	case "search":
+		g.search(c.Seq, strings.TrimSpace(c.Query), c.Kind, c.Page)
 	case "cancel":
 		g.jobs.cancel(c.ID)
 	case "retry":

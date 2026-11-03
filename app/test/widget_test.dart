@@ -6,10 +6,11 @@ import 'package:ymd/app.dart';
 import 'package:ymd/core/fake_core.dart';
 import 'package:ymd/state/controller.dart';
 import 'package:ymd/state/models.dart';
+import 'package:ymd/state/search.dart';
 
 Future<(FakeCore, Controller)> _open(
   WidgetTester tester, {
-  String latest = '2.0.4',
+  String latest = '2.1.0',
   Duration tick = const Duration(milliseconds: 120),
 }) async {
   tester.view.physicalSize = const Size(1280, 860);
@@ -50,7 +51,7 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.0.4');
+    expect(c.version, '2.1.0');
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
@@ -253,7 +254,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.0.4'), findsOneWidget);
+    expect(find.text('Версия 2.1.0'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();
@@ -268,11 +269,11 @@ void main() {
   });
 
   testWidgets('новая версия предлагается при запуске', (tester) async {
-    final (core, c) = await _open(tester, latest: '2.1.0');
+    final (core, c) = await _open(tester, latest: '2.2.0');
 
-    expect(find.text('Доступна версия 2.1.0'), findsNothing);
+    expect(find.text('Доступна версия 2.2.0'), findsNothing);
     await _login(tester, 'good-token');
-    expect(find.text('Доступна версия 2.1.0'), findsOneWidget);
+    expect(find.text('Доступна версия 2.2.0'), findsOneWidget);
     expect(find.text('Самообновление из релизов GitHub.'), findsOneWidget);
 
     await tester.tap(find.text('Обновить'));
@@ -354,6 +355,120 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.canDownload, isFalse);
     expect(find.text('Войти'), findsOneWidget);
+
+    await core.close();
+  });
+  testWidgets('поиск по названию: живые результаты, добавление в подборку и скачивание', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+
+    await tester.enterText(find.byType(TextField), 'кино');
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(c.search.open, isTrue);
+    expect(find.text('Что скачаем?'), findsNothing);
+    expect(find.text('Лучший результат'), findsOneWidget);
+    expect(find.byTooltip('Закрыть поиск'), findsOneWidget);
+    expect(find.text('Война'), findsOneWidget);
+    expect(find.text('Звезда по имени Солнце'), findsWidgets);
+
+    await tester.tap(find.text('Добавить в подборку'));
+    await tester.pumpAndSettle();
+    expect(c.drafts.value.map((d) => d.link), ['https://music.yandex.ru/artist/1']);
+    expect(find.text('Убрать из подборки'), findsOneWidget);
+
+    await tester.tap(find.text('Война'));
+    await tester.pumpAndSettle();
+    expect(c.drafts.value, hasLength(2));
+    expect(find.textContaining('2 ссылки · '), findsOneWidget);
+
+    await tester.tap(find.text('Война'));
+    await tester.pumpAndSettle();
+    expect(c.drafts.value, hasLength(1));
+    expect(find.text('Убрано из подборки'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Закрыть поиск'));
+    await tester.pumpAndSettle();
+    expect(c.search.open, isFalse);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    expect(find.text('Подборка'), findsOneWidget);
+
+    await _downloadAll(tester);
+    expect(c.jobs, hasLength(1));
+    expect(core.lastDownload?['link'], 'https://music.yandex.ru/artist/1');
+
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+    await core.close();
+  });
+
+  testWidgets('поиск: раздел целиком, догрузка и исправление опечатки', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+
+    await tester.enterText(find.byType(TextField), 'кина');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(find.text('«кино»'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Треки'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(c.search.filter, ReleaseKind.track);
+    expect(c.search.results?[ReleaseKind.track]?.hits, hasLength(10));
+
+    await tester.scrollUntilVisible(find.text('Показать ещё'), 300, scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.text('Показать ещё'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(c.search.results?[ReleaseKind.track]?.hits, hasLength(20));
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Всё'));
+    await tester.pumpAndSettle();
+    expect(find.text('Лучший результат'), findsOneWidget);
+
+    await tester.tap(find.text('«кино»'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(c.search.query, 'кино');
+    expect(find.text('«кино»'), findsNothing);
+
+    Focus.of(tester.element(find.descendant(of: find.byType(ChoiceChip), matching: find.text('Треки')))).requestFocus();
+    await tester.pump();
+    expect(tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus, isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(c.search.open, isFalse);
+    expect(find.text('Что скачаем?'), findsOneWidget);
+
+    await core.close();
+  });
+
+  testWidgets('поиск: пусто, ошибка и ссылка в том же поле', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+
+    Future<void> query(String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
+    }
+
+    await query('пусто');
+    expect(find.text('Ничего не нашлось'), findsOneWidget);
+
+    await query('ошибка');
+    expect(find.text('Поиск не удался'), findsOneWidget);
+    expect(c.search.results?.status, SearchStatus.error);
+
+    await _add(tester, 'https://music.yandex.ru/album/123');
+    expect(c.search.open, isFalse);
+    expect(c.drafts.value, hasLength(1));
+    expect(find.text('Кино · 8 треков'), findsOneWidget);
 
     await core.close();
   });

@@ -7,6 +7,7 @@ import '../desktop.dart';
 import 'draft.dart';
 import 'models.dart';
 import 'picker.dart';
+import 'search.dart';
 
 class Controller extends ChangeNotifier {
   Controller(this.core, {Desktop? desktop}) : desktop = desktop ?? Desktop() {
@@ -41,6 +42,7 @@ class Controller extends ChangeNotifier {
   final drafts = ValueNotifier<List<Draft>>(const []);
   final selected = ValueNotifier<Draft?>(null);
   final downloadsOpen = ValueNotifier(false);
+  late final search = SearchState(send);
 
   final _jobs = <int, Job>{};
   List<Job> get jobs => _jobs.values.toList().reversed.toList();
@@ -66,8 +68,14 @@ class Controller extends ChangeNotifier {
   void recheck() => send({'cmd': 'recheck'});
 
   void logout() {
+    search.close();
     _dropDrafts();
     send({'cmd': 'logout'});
+  }
+
+  Draft _newDraft(String link) {
+    send({'cmd': 'preview', 'link': link});
+    return Draft(link);
   }
 
   int addLinks(String text) {
@@ -80,11 +88,10 @@ class Controller extends ChangeNotifier {
         existing ??= known;
         continue;
       }
-      final d = Draft(link);
+      final d = _newDraft(link);
       first ??= d;
       list.add(d);
       added++;
-      send({'cmd': 'preview', 'link': link});
     }
     if (added > 0) {
       drafts.value = list;
@@ -94,6 +101,19 @@ class Controller extends ChangeNotifier {
       _notices.add(const Notice('Уже в подборке, открыл её'));
     }
     return added;
+  }
+
+  Draft? draftFor(String link) => drafts.value.where((d) => d.link == link).firstOrNull;
+
+  void toggleHit(SearchHit hit) {
+    final known = draftFor(hit.link);
+    if (known != null) {
+      removeDraft(known);
+      return;
+    }
+    final d = _newDraft(hit.link);
+    drafts.value = [...drafts.value, d];
+    selected.value = d;
   }
 
   List<Draft> _trash = const [];
@@ -317,6 +337,9 @@ class Controller extends ChangeNotifier {
         _jobs[id] = Job(id)..apply(ev);
       case 'jobRemoved':
         _jobs.remove((ev['id'] as num).toInt())?.dispose();
+      case 'search':
+        search.receive(ev);
+        return;
       case 'albumTracks':
         final id = '${ev['id']}';
         final tracks = [
@@ -378,6 +401,7 @@ class Controller extends ChangeNotifier {
     for (final d in [...drafts.value, ..._trash]) {
       d.dispose();
     }
+    search.dispose();
     drafts.dispose();
     selected.dispose();
     downloadsOpen.dispose();

@@ -3,10 +3,14 @@ package gui
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"ymd/internal/yam"
 )
 
 func TestGateLimit(t *testing.T) {
@@ -102,5 +106,19 @@ func TestProtectRoundTrip(t *testing.T) {
 	}
 	if bytes.Contains([]byte(c.Token), secret) {
 		t.Errorf("токен лежит в конфиге открытым текстом")
+	}
+}
+
+func TestSearchError(t *testing.T) {
+	cases := map[error]string{
+		errors.New(`Get "https://api.music.yandex.net/search": dial tcp: no such host`): "Нет связи с Яндекс Музыкой. Проверьте подключение и повторите.",
+		fmt.Errorf("x: %w", context.DeadlineExceeded):                                   "Яндекс Музыка не ответила вовремя. Проверьте подключение и повторите.",
+		&yam.APIError{Status: 500}:                                                      "Яндекс Музыка ответила ошибкой (HTTP 500). Повторите чуть позже.",
+		yam.ErrUnauthorized:                                                             yam.ErrUnauthorized.Error(),
+	}
+	for err, want := range cases {
+		if got := searchError(err); got != want {
+			t.Errorf("searchError(%v) = %q, want %q", err, got, want)
+		}
 	}
 }

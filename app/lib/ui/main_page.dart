@@ -9,6 +9,7 @@ import '../theme.dart';
 import 'downloads.dart';
 import 'link_input.dart';
 import 'log_dialog.dart';
+import 'search_view.dart';
 import 'settings_dialog.dart';
 import 'source_detail.dart';
 import 'sources.dart';
@@ -28,10 +29,11 @@ class MainPage extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([c.drafts, c.downloadsOpen]),
+          listenable: Listenable.merge([c.drafts, c.downloadsOpen, c.search]),
           builder: (context, _) {
             final empty = c.drafts.value.isEmpty;
             final open = c.downloadsOpen.value;
+            final searching = c.search.open;
             return LayoutBuilder(
               builder: (context, box) => Stack(
                 children: [
@@ -39,10 +41,12 @@ class MainPage extends StatelessWidget {
                     excluding: open,
                     child: Column(
                       children: [
-                        _Header(c: c, withInput: !empty, compact: box.maxWidth < 1080),
+                        _Header(c: c, withInput: !empty || searching, compact: box.maxWidth < 1080),
                         Divider(height: 1, color: scheme.outlineVariant),
                         Expanded(
-                          child: empty
+                          child: searching
+                              ? FocusTraversalGroup(child: SearchView(c: c))
+                              : empty
                               ? _Hero(c: c)
                               : Row(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -181,8 +185,8 @@ class _Hero extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Вставьте одну ссылку или сразу пачку. Название, исполнитель и обложка '
-              'определятся сами, а нужное можно отметить галочками.',
+              'Найдите музыку по названию или вставьте ссылки. Название, исполнитель и '
+              'обложка определятся сами, а нужное можно отметить галочками.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16, height: 1.5),
             ),
@@ -291,34 +295,36 @@ class _ActionBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Flexible(
-                child: Tooltip(
-                  message: 'Изменить папку\n${c.dir}',
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: _browse,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.folder_rounded, size: 16, color: scheme.onSurfaceVariant),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              c.dir,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Tooltip(
+                    message: 'Изменить папку\n${c.dir}',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _browse,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.folder_rounded, size: 16, color: scheme.onSurfaceVariant),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                c.dir,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-              const Spacer(),
               const SizedBox(width: 16),
               FilledButton.icon(
                 onPressed: ready.isEmpty ? null : c.downloadAll,
