@@ -6,7 +6,7 @@ import 'package:ymd/core/fake_core.dart';
 import 'package:ymd/state/controller.dart';
 import 'package:ymd/state/models.dart';
 
-Future<(FakeCore, Controller)> _open(WidgetTester tester, {String latest = '2.0.2'}) async {
+Future<(FakeCore, Controller)> _open(WidgetTester tester, {String latest = '2.0.3'}) async {
   tester.view.physicalSize = const Size(1280, 860);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -44,7 +44,7 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.0.2');
+    expect(c.version, '2.0.3');
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
@@ -238,7 +238,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.0.2'), findsOneWidget);
+    expect(find.text('Версия 2.0.3'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();
