@@ -11,7 +11,7 @@ import 'package:ymd/state/search.dart';
 
 Future<(FakeCore, Controller)> _open(
   WidgetTester tester, {
-  String latest = '2.1.3',
+  String latest = '2.2.0',
   Duration tick = const Duration(milliseconds: 120),
 }) async {
   tester.view.physicalSize = const Size(1280, 860);
@@ -82,7 +82,7 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.1.3');
+    expect(c.version, '2.2.0');
     expect(find.text('Войти через Яндекс'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
@@ -340,7 +340,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.1.3'), findsOneWidget);
+    expect(find.text('Версия 2.2.0'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();
@@ -355,11 +355,11 @@ void main() {
   });
 
   testWidgets('новая версия предлагается при запуске', (tester) async {
-    final (core, c) = await _open(tester, latest: '2.2.0');
+    final (core, c) = await _open(tester, latest: '2.3.0');
 
-    expect(find.text('Доступна версия 2.2.0'), findsNothing);
+    expect(find.text('Доступна версия 2.3.0'), findsNothing);
     await _login(tester, 'good-token');
-    expect(find.text('Доступна версия 2.2.0'), findsOneWidget);
+    expect(find.text('Доступна версия 2.3.0'), findsOneWidget);
     expect(find.text('Самообновление из релизов GitHub.'), findsOneWidget);
 
     await tester.tap(find.text('Обновить'));

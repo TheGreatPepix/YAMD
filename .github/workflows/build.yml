@@ -206,7 +206,7 @@ jobs:
       - name: Core
         working-directory: mobile
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" > /dev/null
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
           go install golang.org/x/mobile/cmd/gomobile@$(go list -m -f '{{.Version}}' golang.org/x/mobile)
           gomobile init
