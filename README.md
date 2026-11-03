@@ -1,7 +1,22 @@
-# YAMD · Yet Another Music Downloader
+<h1 align="center">YAMD · Yet Another Music Downloader</h1>
 
-[![Версия](https://img.shields.io/github/v/release/TheGreatPepix/YAMD?style=flat-square&label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&color=FFD43B&labelColor=1A1600)](../../releases/latest) [![Скачивания](https://img.shields.io/github/downloads/TheGreatPepix/YAMD/total?style=flat-square&label=%D1%81%D0%BA%D0%B0%D1%87%D0%B8%D0%B2%D0%B0%D0%BD%D0%B8%D0%B9&color=FF9E1B&labelColor=1A1600)](../../releases) [![Сборка](https://img.shields.io/github/actions/workflow/status/TheGreatPepix/YAMD/build.yml?style=flat-square&label=%D1%81%D0%B1%D0%BE%D1%80%D0%BA%D0%B0&labelColor=1A1600)](../../actions/workflows/build.yml)
-![Android](https://img.shields.io/badge/Android-7%2B%20%C2%B7%20arm64%20%C2%B7%20arm%20%C2%B7%20x64-3DDC84?style=flat-square&logo=android&logoColor=white) ![Windows](https://img.shields.io/badge/Windows-10%2B%20%C2%B7%20x64-0078D4?style=flat-square&logo=windows&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%C2%B7%20Intel-000000?style=flat-square&logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-x64%20%C2%B7%20AppImage-FCC624?style=flat-square&logo=linux&logoColor=black) ![FLAC](https://img.shields.io/badge/FLAC-%D0%B4%D0%BE%2024%20%D0%B1%D0%B8%D1%82%20%C2%B7%20192%20%D0%BA%D0%93%D1%86-1A1600?style=flat-square) ![MP3](https://img.shields.io/badge/MP3-320%20%D0%BA%D0%B1%D0%B8%D1%82%2F%D1%81-1A1600?style=flat-square)
+<p align="center">
+  <a href="../../releases/latest"><img alt="версия" src="https://img.shields.io/github/v/release/TheGreatPepix/YAMD?style=for-the-badge&labelColor=1A1600&label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&color=FFD43B"></a>
+  <a href="../../releases"><img alt="скачиваний" src="https://img.shields.io/github/downloads/TheGreatPepix/YAMD/total?style=for-the-badge&labelColor=1A1600&label=%D1%81%D0%BA%D0%B0%D1%87%D0%B8%D0%B2%D0%B0%D0%BD%D0%B8%D0%B9&color=FF9E1B"></a>
+  <a href="../../actions/workflows/build.yml"><img alt="сборка" src="https://img.shields.io/github/actions/workflow/status/TheGreatPepix/YAMD/build.yml?style=for-the-badge&labelColor=1A1600&label=%D1%81%D0%B1%D0%BE%D1%80%D0%BA%D0%B0&color=3DDC84"></a>
+</p>
+
+<p align="center">
+  <img alt="Android" src="https://img.shields.io/badge/Android-arm64%20%C2%B7%20arm%20%C2%B7%20x64-2A2A33?style=for-the-badge&labelColor=1A1600&logo=android&logoColor=white">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-x64-2A2A33?style=for-the-badge&labelColor=1A1600&logo=windows&logoColor=white">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-arm64%20%C2%B7%20x64-2A2A33?style=for-the-badge&labelColor=1A1600&logo=apple&logoColor=white">
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-x64-2A2A33?style=for-the-badge&labelColor=1A1600&logo=linux&logoColor=white">
+</p>
+
+<p align="center">
+  <img alt="FLAC" src="https://img.shields.io/badge/FLAC-24%20%D0%B1%D0%B8%D1%82%20%C2%B7%20192%20%D0%BA%D0%93%D1%86-2A2A33?style=for-the-badge&labelColor=1A1600">
+  <img alt="MP3" src="https://img.shields.io/badge/MP3-320%20%D0%BA%D0%B1%D0%B8%D1%82%2F%D1%81-2A2A33?style=for-the-badge&labelColor=1A1600">
+</p>
 
 **Ваша музыка из Яндекс Музыки в студийном качестве. На компьютере и на
 телефоне.**
