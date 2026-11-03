@@ -54,6 +54,7 @@ class Controller extends ChangeNotifier {
   final stats = ValueNotifier(const Stats());
 
   final log = ValueNotifier('');
+  final device = ValueNotifier(const DeviceLogin());
 
   bool get canDownload => account.status == AccountStatus.ok;
 
@@ -86,11 +87,22 @@ class Controller extends ChangeNotifier {
 
   void login(String token) => send({'cmd': 'login', 'token': token.trim()});
 
+  void startDeviceLogin() {
+    device.value = const DeviceLogin(status: DeviceStatus.requesting);
+    send({'cmd': 'deviceLogin'});
+  }
+
+  void cancelDeviceLogin() {
+    device.value = const DeviceLogin();
+    send({'cmd': 'deviceCancel'});
+  }
+
   void recheck() => send({'cmd': 'recheck'});
 
   void logout() {
     search.close();
     _dropDrafts();
+    device.value = const DeviceLogin();
     send({'cmd': 'logout'});
   }
 
@@ -341,6 +353,10 @@ class Controller extends ChangeNotifier {
         ready = true;
       case 'account':
         account = Account.fromJson(ev);
+      case 'deviceLogin':
+        if (device.value.status == DeviceStatus.idle && ev['status'] != 'done') return;
+        device.value = ev['status'] == 'done' ? const DeviceLogin() : DeviceLogin.fromJson(ev, DateTime.now());
+        return;
       case 'preview':
         final p = Preview.fromJson(ev);
 
@@ -431,6 +447,7 @@ class Controller extends ChangeNotifier {
     downloadsOpen.dispose();
     stats.dispose();
     log.dispose();
+    device.dispose();
     super.dispose();
   }
 }

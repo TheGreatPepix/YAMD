@@ -10,7 +10,7 @@ import (
 	"ymd/internal/yam"
 )
 
-const Version = "2.1.2"
+const Version = "2.1.3"
 
 const (
 	accNone     = "none"
@@ -34,6 +34,8 @@ type App struct {
 	checkID int
 
 	searchCancel context.CancelFunc
+	deviceCancel context.CancelFunc
+	grant        *yam.Grant
 }
 
 type accountEvent struct {
@@ -57,6 +59,7 @@ func (g *App) start() {
 	g.startUpdates()
 	if g.token != "" {
 		g.checkAccount(g.token, false)
+		go g.refreshGrant()
 	}
 }
 
@@ -113,13 +116,28 @@ func (g *App) checkAccount(token string, save bool) {
 			g.token = ""
 		}
 		var saveErr error
+		var revoke string
 		if (save && keep) || (!save && !keep) {
+			grant := g.grant
+			if grant != nil && grant.AccessToken != g.token {
+				grant = nil
+			}
+			if old := g.cfg.token(); save && g.cfg.Refresh != "" && old != "" && old != token {
+				revoke = old
+			}
 			if saveErr = g.cfg.setToken(g.token); saveErr == nil {
+				saveErr = g.cfg.setGrant(grant)
+			}
+			if saveErr == nil {
 				saveErr = g.cfg.save()
 			}
 		}
+		g.grant = nil
 		g.mu.Unlock()
 
+		if revoke != "" {
+			g.revoke(revoke)
+		}
 		g.setAccount(ev)
 		if saveErr != nil {
 			g.notice("Не удалось сохранить токен: "+saveErr.Error(), "error")
@@ -149,16 +167,28 @@ func (g *App) logout() {
 	g.jobs.cancel(0)
 	g.mu.Lock()
 	g.checkID++
-	g.token, g.session = "", nil
+	g.token, g.session, g.grant = "", nil, nil
 	if g.searchCancel != nil {
 		g.searchCancel()
 		g.searchCancel = nil
 	}
+	if g.deviceCancel != nil {
+		g.deviceCancel()
+		g.deviceCancel = nil
+	}
+	var revoke string
+	if g.cfg.Refresh != "" {
+		revoke = g.cfg.token()
+	}
 	_ = g.cfg.setToken("")
+	_ = g.cfg.setGrant(nil)
 	err := g.cfg.save()
 	g.mu.Unlock()
 	if err != nil {
 		g.notice("Не удалось сохранить настройки: "+err.Error(), "error")
+	}
+	if revoke != "" {
+		g.revoke(revoke)
 	}
 	g.setAccount(accountEvent{Status: accNone})
 }

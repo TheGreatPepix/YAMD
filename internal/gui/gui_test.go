@@ -178,3 +178,23 @@ func TestCoreLifecycle(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestGrantStorage(t *testing.T) {
+	var c config
+	g := &yam.Grant{AccessToken: "acc", RefreshToken: "y0_refresh-secret", ExpiresIn: 365 * 24 * 3600}
+	if err := c.setGrant(g); err != nil {
+		t.Fatal(err)
+	}
+	if c.refresh() != g.RefreshToken {
+		t.Errorf("refresh() не восстановил refresh_token")
+	}
+	if bytes.Contains([]byte(c.Refresh), []byte(g.RefreshToken)) {
+		t.Errorf("refresh_token лежит в конфиге открытым текстом")
+	}
+	if d := time.Until(time.Unix(c.Expires, 0)); d < 364*24*time.Hour || d > 366*24*time.Hour {
+		t.Errorf("срок = %v", d)
+	}
+	if err := c.setGrant(nil); err != nil || c.Refresh != "" || c.Expires != 0 {
+		t.Errorf("setGrant(nil) не очистил: %+v", c)
+	}
+}

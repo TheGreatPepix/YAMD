@@ -40,6 +40,29 @@ class Account {
       displayName.isEmpty ? '?' : String.fromCharCode(displayName.runes.first).toUpperCase();
 }
 
+enum DeviceStatus { idle, requesting, code, expired, error }
+
+class DeviceLogin {
+  const DeviceLogin({this.status = DeviceStatus.idle, this.code = '', this.url = '', this.expiresAt, this.message = ''});
+
+  factory DeviceLogin.fromJson(Map<String, dynamic> j, DateTime now) => DeviceLogin(
+        status: DeviceStatus.values.firstWhere((s) => s.name == j['status'], orElse: () => DeviceStatus.idle),
+        code: _str(j['code']),
+        url: _str(j['url']),
+        expiresAt: j['expiresIn'] is num ? now.add(Duration(seconds: (j['expiresIn'] as num).toInt())) : null,
+        message: _str(j['message']),
+      );
+
+  final DeviceStatus status;
+  final String code, url, message;
+  final DateTime? expiresAt;
+
+  String get host {
+    final u = Uri.tryParse(url);
+    return u == null || u.host.isEmpty ? url : '${u.host}${u.path}';
+  }
+}
+
 enum ReleaseKind {
   track('Трек', 'Скачать трек'),
   album('Альбом', 'Скачать альбом'),

@@ -54,6 +54,10 @@ func (g *App) onMessage(message string) {
 			return
 		}
 		g.checkAccount(token, true)
+	case "deviceLogin":
+		g.deviceLogin()
+	case "deviceCancel":
+		g.deviceCancelLogin()
 	case "recheck":
 		g.recheck()
 	case "logout":

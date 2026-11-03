@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	"ymd/internal/yam"
 )
@@ -21,7 +22,10 @@ type config struct {
 	Quality     string `json:"quality"`
 	Concurrency int    `json:"concurrency"`
 
-	Token string `json:"token,omitempty"`
+	Token    string `json:"token,omitempty"`
+	Refresh  string `json:"refresh,omitempty"`
+	Expires  int64  `json:"expires,omitempty"`
+	DeviceID string `json:"deviceId,omitempty"`
 }
 
 func defaultDir() string {
@@ -66,7 +70,7 @@ func loadConfig() config {
 			if saved.Concurrency != 0 {
 				c.Concurrency = clampConcurrency(saved.Concurrency)
 			}
-			c.Token = saved.Token
+			c.Token, c.Refresh, c.Expires, c.DeviceID = saved.Token, saved.Refresh, saved.Expires, saved.DeviceID
 		}
 	}
 	return c
@@ -83,11 +87,11 @@ func (c config) quality() yam.Quality {
 	return yam.Lossless
 }
 
-func (c config) token() string {
-	if c.Token == "" {
+func unseal(v string) string {
+	if v == "" {
 		return ""
 	}
-	sealed, err := base64.StdEncoding.DecodeString(c.Token)
+	sealed, err := base64.StdEncoding.DecodeString(v)
 	if err != nil {
 		return ""
 	}
@@ -98,17 +102,34 @@ func (c config) token() string {
 	return string(plain)
 }
 
-func (c *config) setToken(token string) error {
-	if token == "" {
-		c.Token = ""
+func seal(plain string) (string, error) {
+	if plain == "" {
+		return "", nil
+	}
+	sealed, err := protect([]byte(plain))
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(sealed), nil
+}
+
+func (c config) token() string { return unseal(c.Token) }
+
+func (c config) refresh() string { return unseal(c.Refresh) }
+
+func (c *config) setToken(token string) (err error) {
+	c.Token, err = seal(token)
+	return err
+}
+
+func (c *config) setGrant(g *yam.Grant) (err error) {
+	if g == nil {
+		c.Refresh, c.Expires = "", 0
 		return nil
 	}
-	sealed, err := protect([]byte(token))
-	if err != nil {
-		return err
-	}
-	c.Token = base64.StdEncoding.EncodeToString(sealed)
-	return nil
+	c.Refresh, err = seal(g.RefreshToken)
+	c.Expires = g.Expires(time.Now()).Unix()
+	return err
 }
 
 func (c config) save() error {

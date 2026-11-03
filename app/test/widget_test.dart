@@ -11,7 +11,7 @@ import 'package:ymd/state/search.dart';
 
 Future<(FakeCore, Controller)> _open(
   WidgetTester tester, {
-  String latest = '2.1.2',
+  String latest = '2.1.3',
   Duration tick = const Duration(milliseconds: 120),
 }) async {
   tester.view.physicalSize = const Size(1280, 860);
@@ -26,6 +26,11 @@ Future<(FakeCore, Controller)> _open(
 }
 
 Future<void> _login(WidgetTester tester, String token) async {
+  final manual = find.text('Вставить токен вручную');
+  if (manual.evaluate().isNotEmpty) {
+    await tester.tap(manual);
+    await tester.pumpAndSettle();
+  }
   await tester.enterText(find.byType(TextField), token);
   await tester.pump();
   await tester.tap(find.text('Войти'));
@@ -77,9 +82,64 @@ void main() {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.1.2');
-    expect(find.text('Войти'), findsOneWidget);
+    expect(c.version, '2.1.3');
+    expect(find.text('Войти через Яндекс'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
+
+    await core.close();
+  });
+
+  testWidgets('вход по коду: код на экране, копирование и вход после подтверждения', (tester) async {
+    final (core, c) = await _open(tester);
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied.add('${(call.arguments as Map)['text']}');
+      return null;
+    });
+
+    await tester.tap(find.text('Войти через Яндекс'));
+    await tester.pump();
+    expect(find.text('Получаю код…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('abcd 1234'), findsOneWidget);
+    expect(find.text('Открыть ya.ru/device'), findsOneWidget);
+    expect(find.textContaining('Жду подтверждения, код действует 4:5'), findsOneWidget);
+
+    await tester.tap(find.text('Скопировать код'));
+    await tester.pump();
+    expect(copied, ['abcd1234']);
+    expect(find.text('Код скопирован'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 2600));
+    expect(find.text('Проверяю подписку…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(c.canDownload, isTrue);
+    expect(find.text('Что скачаем?'), findsOneWidget);
+
+    await core.close();
+  });
+
+  testWidgets('вход по коду можно отменить и войти по токену', (tester) async {
+    final (core, c) = await _open(tester);
+
+    await tester.tap(find.text('Войти через Яндекс'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Отмена'));
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.text('Войти через Яндекс'), findsOneWidget);
+    expect(c.canDownload, isFalse);
+
+    await tester.tap(find.text('Вставить токен вручную'));
+    await tester.pumpAndSettle();
+    expect(find.text('Вход по токену'), findsOneWidget);
+    await tester.tap(find.text('Войти по коду'));
+    await tester.pumpAndSettle();
+    expect(find.text('Войти через Яндекс'), findsOneWidget);
 
     await core.close();
   });
@@ -280,7 +340,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.1.2'), findsOneWidget);
+    expect(find.text('Версия 2.1.3'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();
@@ -380,7 +440,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Выйти'));
     await tester.pumpAndSettle();
     expect(c.canDownload, isFalse);
-    expect(find.text('Войти'), findsOneWidget);
+    expect(find.text('Войти через Яндекс'), findsOneWidget);
 
     await core.close();
   });

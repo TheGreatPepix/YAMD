@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/controller.dart';
 import '../state/models.dart';
@@ -23,6 +25,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _token = TextEditingController();
   var _obscure = true;
+  var _manual = false;
 
   Controller get c => widget.c;
 
@@ -88,8 +91,11 @@ class _LoginPageState extends State<LoginPage> {
                       duration: motion(context, const Duration(milliseconds: 220)),
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.topCenter,
-                      child:
-                          _rechecking(acc) || acc.status == AccountStatus.noplus ? _noPlus(acc) : _form(acc),
+                      child: _rechecking(acc) || acc.status == AccountStatus.noplus
+                          ? _noPlus(acc)
+                          : _manual
+                              ? _form(acc)
+                              : _device(acc),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -123,6 +129,71 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Widget _device(Account acc) {
+    return ValueListenableBuilder(
+      valueListenable: c.device,
+      builder: (context, d, _) => d.status == DeviceStatus.code && acc.status != AccountStatus.checking
+          ? _DeviceCode(key: ValueKey(d.code), c: c, login: d)
+          : _deviceStart(acc, d),
+    );
+  }
+
+  Widget _deviceStart(Account acc, DeviceLogin d) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final checking = acc.status == AccountStatus.checking;
+    final requesting = d.status == DeviceStatus.requesting;
+    return Column(
+      key: const ValueKey('device'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Вход', style: text.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Войдите через Яндекс. Мы проверим, что у аккаунта есть Плюс.',
+          style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        if (d.status == DeviceStatus.expired) ...[
+          const SizedBox(height: 12),
+          _Banner(
+            icon: Icons.timer_off_outlined,
+            color: context.status.warning,
+            text: 'Код истёк. Получите новый, это займёт пару секунд.',
+          ),
+        ],
+        if (d.status == DeviceStatus.error && d.message.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _Banner(icon: Icons.error_outline_rounded, color: scheme.error, text: d.message),
+        ],
+        if (acc.status == AccountStatus.error && acc.message.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _Banner(icon: Icons.error_outline_rounded, color: scheme.error, text: acc.message),
+        ],
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: checking || requesting ? null : c.startDeviceLogin,
+          icon: checking || requesting
+              ? SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2.2, color: scheme.onSurfaceVariant),
+                )
+              : const Icon(Icons.login_rounded, size: 18),
+          label: Text(switch ((checking, requesting, d.status)) {
+            (true, _, _) => 'Проверяю подписку…',
+            (_, true, _) => 'Получаю код…',
+            (_, _, DeviceStatus.expired) => 'Получить новый код',
+            _ => 'Войти через Яндекс',
+          }),
+        ),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: checking ? null : () => setState(() => _manual = true),
+          child: const Text('Вставить токен вручную'),
+        ),
+      ],
+    );
+  }
+
   Widget _form(Account acc) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
@@ -131,10 +202,11 @@ class _LoginPageState extends State<LoginPage> {
       key: const ValueKey('form'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Вход', style: text.titleLarge),
+        Text('Вход по токену', style: text.titleLarge),
         const SizedBox(height: 4),
         Text(
-          'Вставьте OAuth-токен Яндекс Музыки. Мы проверим, что у аккаунта есть Плюс.',
+          'Если вход по коду не подходит, вставьте OAuth-токен Яндекс Музыки. '
+          'Мы проверим, что у аккаунта есть Плюс.',
           style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
@@ -191,6 +263,11 @@ class _LoginPageState extends State<LoginPage> {
             'Браузер откроет страницу с длинным адресом. Скопируйте его целиком.',
             'Вставьте адрес в поле выше: токен из него извлечётся сам.',
           ],
+        ),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: checking ? null : () => setState(() => _manual = false),
+          child: const Text('Войти по коду'),
         ),
       ],
     );
@@ -265,6 +342,124 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _DeviceCode extends StatefulWidget {
+  const _DeviceCode({super.key, required this.c, required this.login});
+
+  final Controller c;
+  final DeviceLogin login;
+
+  @override
+  State<_DeviceCode> createState() => _DeviceCodeState();
+}
+
+class _DeviceCodeState extends State<_DeviceCode> {
+  Timer? _tick;
+  Timer? _copiedReset;
+  var _copied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    _copiedReset?.cancel();
+    super.dispose();
+  }
+
+  String get _left {
+    final e = widget.login.expiresAt;
+    if (e == null) return '';
+    final s = e.difference(DateTime.now()).inSeconds.clamp(0, 3600);
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  String get _spaced {
+    final code = widget.login.code;
+    return code.length == 8 ? '${code.substring(0, 4)} ${code.substring(4)}' : code;
+  }
+
+  void _copy() {
+    Clipboard.setData(ClipboardData(text: widget.login.code));
+    setState(() => _copied = true);
+    _copiedReset?.cancel();
+    _copiedReset = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final d = widget.login;
+    final left = _left;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Подтвердите вход', style: text.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Откройте ${d.host} и введите код:',
+          style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: SelectableText(
+            _spaced,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Cascadia Mono',
+              fontFamilyFallback: const ['Consolas', 'monospace'],
+              fontSize: 30,
+              letterSpacing: 6,
+              fontWeight: FontWeight.w600,
+              color: scheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          autofocus: true,
+          onPressed: () => widget.c.openLink(d.url),
+          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+          label: Text('Открыть ${d.host}'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _copy,
+          icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded, size: 18),
+          label: Text(_copied ? 'Код скопирован' : 'Скопировать код'),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                left.isEmpty ? 'Жду подтверждения' : 'Жду подтверждения, код действует $left',
+                style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextButton(onPressed: widget.c.cancelDeviceLogin, child: const Text('Отмена')),
       ],
     );
   }

@@ -7,6 +7,7 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -381,5 +382,89 @@ func TestArtistSelection(t *testing.T) {
 	}
 	if len(one.Tracks) != 1 || one.Tracks[0].ID != "112" || one.Kind != KindAlbum {
 		t.Errorf("выбор треков альбома: %+v", one.Tracks)
+	}
+}
+
+func TestOAuthDeviceFlow(t *testing.T) {
+	var polls, revoked int
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		mu.Lock()
+		defer mu.Unlock()
+		if r.Form.Get("client_id") != clientID {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"invalid_client"}`))
+			return
+		}
+		switch r.URL.Path {
+		case "/device/code":
+			if r.Form.Get("device_id") != "dev-123456" || r.Form.Get("device_name") != "YAMD (тест)" {
+				t.Errorf("device/code: %v", r.Form)
+			}
+			w.Write([]byte(`{"device_code":"dc","user_code":"abcd1234","verification_url":"https://ya.ru/device","interval":1,"expires_in":300}`))
+		case "/token":
+			if r.Form.Get("client_secret") != clientSecret {
+				t.Errorf("token без client_secret")
+			}
+			switch r.Form.Get("grant_type") {
+			case "device_code":
+				polls++
+				switch {
+				case r.Form.Get("code") == "gone":
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte(`{"error":"expired_token","error_description":"Code expired"}`))
+				case polls < 3:
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte(`{"error":"authorization_pending","error_description":"User has not yet authorized"}`))
+				default:
+					w.Write([]byte(`{"access_token":"acc","refresh_token":"ref","expires_in":31536000,"token_type":"bearer"}`))
+				}
+			case "refresh_token":
+				if r.Form.Get("refresh_token") != "ref" {
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte(`{"error":"invalid_grant","error_description":"Invalid refresh token"}`))
+					return
+				}
+				w.Write([]byte(`{"access_token":"acc","refresh_token":"ref2","expires_in":31536000}`))
+			}
+		case "/revoke_token":
+			if r.Form.Get("access_token") != "acc" || r.Form.Get("client_secret") != clientSecret {
+				t.Errorf("revoke: %v", r.Form)
+			}
+			revoked++
+			w.Write([]byte(`{"status":"ok"}`))
+		}
+	}))
+	defer srv.Close()
+	o := &OAuth{base: srv.URL, http: srv.Client()}
+	ctx := context.Background()
+
+	code, err := o.DeviceCode(ctx, "dev-123456", "YAMD (тест)")
+	if err != nil || code.UserCode != "abcd1234" || code.Interval != 1 || code.ExpiresIn != 300 {
+		t.Fatalf("DeviceCode = %+v, %v", code, err)
+	}
+	for range 2 {
+		if _, err := o.PollDevice(ctx, code.DeviceCode); !errors.Is(err, ErrPending) {
+			t.Fatalf("ждали ErrPending, пришло %v", err)
+		}
+	}
+	g, err := o.PollDevice(ctx, code.DeviceCode)
+	if err != nil || g.AccessToken != "acc" || g.RefreshToken != "ref" || g.ExpiresIn != 31536000 {
+		t.Fatalf("PollDevice = %+v, %v", g, err)
+	}
+	if _, err := o.PollDevice(ctx, "gone"); !errors.Is(err, ErrExpired) {
+		t.Errorf("ждали ErrExpired, пришло %v", err)
+	}
+
+	r, err := o.Refresh(ctx, "ref")
+	if err != nil || r.RefreshToken != "ref2" {
+		t.Errorf("Refresh = %+v, %v", r, err)
+	}
+	if _, err := o.Refresh(ctx, "bad"); err == nil || !strings.Contains(err.Error(), "invalid_grant") {
+		t.Errorf("плохой refresh_token: %v", err)
+	}
+	if err := o.Revoke(ctx, "acc"); err != nil || revoked != 1 {
+		t.Errorf("Revoke: %v, вызовов %d", err, revoked)
 	}
 }
