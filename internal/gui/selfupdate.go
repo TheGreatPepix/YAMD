@@ -75,7 +75,7 @@ func (g *App) applyUpdate() {
 	g.emit(map[string]any{"type": "updating", "done": 0, "total": 0})
 	go func() {
 		var last time.Time
-		err := update.Install(Version, os.Getppid(), func(done, total int64) {
+		pkg, err := update.Install(Version, os.Getppid(), func(done, total int64) {
 			if now := time.Now(); done == total || now.Sub(last) >= 100*time.Millisecond {
 				last = now
 				g.emit(map[string]any{"type": "updating", "done": done, "total": total})
@@ -87,6 +87,15 @@ func (g *App) applyUpdate() {
 			g.upd.mu.Unlock()
 			g.logf("Не удалось обновить YAMD: %v", err)
 			g.emit(map[string]any{"type": "updating", "error": err.Error()})
+			return
+		}
+		if pkg != "" {
+			g.upd.mu.Lock()
+			g.upd.running = false
+			g.upd.mu.Unlock()
+			g.logf("Обновление скачано, открываю установщик")
+			g.emit(map[string]any{"type": "installPackage", "path": pkg})
+			g.emit(map[string]any{"type": "updating", "installer": true})
 			return
 		}
 		g.logf("Обновление скачано, YAMD перезапустится")

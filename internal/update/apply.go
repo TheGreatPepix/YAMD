@@ -21,6 +21,7 @@ type plan struct {
 	Merge   bool     `json:"merge"`
 	Launch  []string `json:"launch"`
 	Temp    string   `json:"temp,omitempty"`
+	Package string   `json:"package,omitempty"`
 	Version string   `json:"version"`
 }
 

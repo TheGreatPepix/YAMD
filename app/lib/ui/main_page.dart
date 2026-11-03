@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,58 +37,89 @@ class MainPage extends StatelessWidget {
             final open = c.downloadsOpen.value;
             final searching = c.search.open;
             return LayoutBuilder(
-              builder: (context, box) => Stack(
-                children: [
-                  ExcludeFocus(
-                    excluding: open,
-                    child: Column(
-                      children: [
-                        _Header(c: c, withInput: !empty || searching, compact: box.maxWidth < 1080),
-                        Divider(height: 1, color: scheme.outlineVariant),
-                        Expanded(
-                          child: searching
-                              ? FocusTraversalGroup(child: SearchView(c: c))
-                              : empty
-                              ? _Hero(c: c)
-                              : Row(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    SizedBox(
-                                      width: box.maxWidth >= 1100 ? 340 : 280,
-                                      child: FocusTraversalGroup(child: SourceList(c: c)),
+              builder: (context, box) {
+                final phone = box.maxWidth < phoneWidth;
+                return PopScope(
+                  canPop: !open && !searching,
+                  onPopInvokedWithResult: (didPop, _) {
+                    if (didPop) return;
+                    if (open) {
+                      _close();
+                    } else if (searching) {
+                      c.search.close();
+                    }
+                  },
+                  child: Stack(
+                    children: [
+                      ExcludeFocus(
+                        excluding: open,
+                        child: Column(
+                          children: [
+                            _Header(
+                              c: c,
+                              withInput: (!empty || searching) && !phone,
+                              compact: box.maxWidth < 1080,
+                              phone: phone,
+                            ),
+                            if (phone && (!empty || searching))
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                                child: LinkInput(c: c),
+                              ),
+                            Divider(height: 1, color: scheme.outlineVariant),
+                            if (Platform.isAndroid) _StorageBanner(c: c),
+                            Expanded(
+                              child: searching
+                                  ? FocusTraversalGroup(child: SearchView(c: c))
+                                  : empty
+                                  ? _Hero(c: c)
+                                  : phone
+                                  ? _PhoneDrafts(c: c)
+                                  : Row(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        SizedBox(
+                                          width: box.maxWidth >= 1100 ? 340 : 280,
+                                          child: FocusTraversalGroup(child: SourceList(c: c)),
+                                        ),
+                                        VerticalDivider(width: 1, color: scheme.outlineVariant),
+                                        Expanded(
+                                          child: FocusTraversalGroup(child: SourceDetail(c: c)),
+                                        ),
+                                      ],
                                     ),
-                                    VerticalDivider(width: 1, color: scheme.outlineVariant),
-                                    Expanded(
-                                      child: FocusTraversalGroup(child: SourceDetail(c: c)),
-                                    ),
-                                  ],
-                                ),
+                            ),
+                            if (!empty) _ActionBar(c: c, phone: phone),
+                          ],
                         ),
-                        if (!empty) _ActionBar(c: c),
+                      ),
+                      if (open && phone)
+                        Positioned.fill(
+                          child: FocusScope(autofocus: true, child: DownloadsPanel(c: c)),
+                        ),
+                      if (open && !phone) ...[
+                        Positioned.fill(
+                          top: 73,
+                          child: GestureDetector(
+                            onTap: _close,
+                            child: ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
+                          ),
+                        ),
+                        Positioned(
+                          top: 80,
+                          right: 12,
+                          bottom: 12,
+                          width: (box.maxWidth - 24).clamp(0, 440).toDouble(),
+                          child: CallbackShortcuts(
+                            bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
+                            child: FocusScope(autofocus: true, child: DownloadsPanel(c: c)),
+                          ),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                  if (open) ...[
-                    Positioned.fill(
-                      top: 73,
-                      child: GestureDetector(
-                        onTap: _close,
-                        child: ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
-                      ),
-                    ),
-                    Positioned(
-                      top: 80,
-                      right: 12,
-                      bottom: 12,
-                      width: (box.maxWidth - 24).clamp(0, 440).toDouble(),
-                      child: CallbackShortcuts(
-                        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
-                        child: FocusScope(autofocus: true, child: DownloadsPanel(c: c)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                );
+              },
             );
           },
         ),
@@ -95,14 +128,243 @@ class MainPage extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.c, required this.withInput, required this.compact});
+class _PhoneDrafts extends StatefulWidget {
+  const _PhoneDrafts({required this.c});
 
   final Controller c;
-  final bool withInput, compact;
+
+  @override
+  State<_PhoneDrafts> createState() => _PhoneDraftsState();
+}
+
+class _PhoneDraftsState extends State<_PhoneDrafts> {
+  var _detail = false;
+
+  Controller get c => widget.c;
+
+  @override
+  void initState() {
+    super.initState();
+    c.selected.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    c.selected.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (c.selected.value == null && _detail) setState(() => _detail = false);
+  }
+
+  void _back() => setState(() => _detail = false);
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopScope(
+      canPop: !_detail,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !c.downloadsOpen.value && !c.search.open) _back();
+      },
+      child: _detail
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 12, 0),
+                  child: Row(
+                    children: [
+                      IconButton(tooltip: 'К подборке', icon: const Icon(Icons.arrow_back_rounded), onPressed: _back),
+                      Text(
+                        'Подборка',
+                        style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: FocusTraversalGroup(child: SourceDetail(c: c)),
+                ),
+              ],
+            )
+          : FocusTraversalGroup(
+              child: SourceList(c: c, onOpen: () => setState(() => _detail = true)),
+            ),
+    );
+  }
+}
+
+class _StorageBanner extends StatefulWidget {
+  const _StorageBanner({required this.c});
+
+  final Controller c;
+
+  @override
+  State<_StorageBanner> createState() => _StorageBannerState();
+}
+
+class _StorageBannerState extends State<_StorageBanner> with WidgetsBindingObserver {
+  var _granted = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final granted = await widget.c.desktop.storageGranted();
+    if (mounted && granted != _granted) setState(() => _granted = granted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_granted) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: context.status.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.status.warning.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.folder_off_outlined, color: context.status.warning, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Нужен доступ к файлам, чтобы сохранять музыку',
+              style: TextStyle(color: scheme.onSurface, fontSize: 13, height: 1.35),
+            ),
+          ),
+          TextButton(onPressed: widget.c.desktop.requestStorage, child: const Text('Разрешить')),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _logout(BuildContext context, Controller c) async {
+  final running = c.running;
+  final drafts = c.drafts.value.length;
+  if (running > 0 || drafts > 0) {
+    final body = [
+      if (running > 0) 'Незавершённые загрузки остановятся: $running.',
+      if (drafts > 0) 'Подборка очистится: ${linksLabel(drafts)}.',
+      'Скачанные файлы останутся на диске.',
+    ].join(' ');
+    final ok = await confirm(context, title: 'Выйти из аккаунта?', body: body, action: 'Выйти');
+    if (!ok) return;
+  }
+  c.logout();
+}
+
+class _PhoneMenu extends StatelessWidget {
+  const _PhoneMenu({required this.c});
+
+  final Controller c;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return MenuAnchor(
+      alignmentOffset: const Offset(0, 6),
+      menuChildren: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AccountAvatar(account: c.account, size: 30),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(c.account.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  if (c.account.login.isNotEmpty && c.account.login != c.account.displayName)
+                    Text(c.account.login, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+                ],
+              ),
+              const SizedBox(width: 10),
+              const PlusBadge(),
+            ],
+          ),
+        ),
+        const Divider(),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.settings_rounded),
+          onPressed: () => showSettingsDialog(context, c),
+          child: const Text('Настройки'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.receipt_long_rounded),
+          onPressed: () => showLogDialog(context, c),
+          child: const Text('Журнал'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.verified_outlined),
+          onPressed: c.recheck,
+          child: const Text('Проверить подписку'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.logout_rounded),
+          onPressed: () => _logout(context, c),
+          child: const Text('Выйти'),
+        ),
+      ],
+      builder: (context, menu, _) => IconButton(
+        tooltip: 'Меню',
+        icon: const Icon(Icons.more_vert_rounded),
+        onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.c, required this.withInput, required this.compact, required this.phone});
+
+  final Controller c;
+  final bool withInput, compact, phone;
+
+  @override
+  Widget build(BuildContext context) {
+    if (phone) {
+      return SizedBox(
+        height: 60,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 14, right: 4),
+          child: Row(
+            children: [
+              const BrandMark(size: 30),
+              const SizedBox(width: 10),
+              Text('YAMD', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const Spacer(),
+              UpdateButton(c: c),
+              DownloadsButton(c: c),
+              _PhoneMenu(c: c),
+            ],
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 72,
       child: Padding(
@@ -112,10 +374,7 @@ class _Header extends StatelessWidget {
             const BrandMark(size: 34),
             if (!compact) ...[
               const SizedBox(width: 10),
-              Text(
-                'YAMD',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
+              Text('YAMD', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             ],
             SizedBox(width: compact ? 16 : 24),
             Expanded(
@@ -172,32 +431,33 @@ class _Hero extends StatelessWidget {
         Text(text, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
       ],
     );
+    final phone = MediaQuery.sizeOf(context).width < phoneWidth;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 72),
+        padding: EdgeInsets.fromLTRB(phone ? 16 : 24, 24, phone ? 16 : 24, phone ? 24 : 72),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Что скачаем?',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 44, fontWeight: FontWeight.w800, letterSpacing: -1.2),
+              style: TextStyle(fontSize: phone ? 32 : 44, fontWeight: FontWeight.w800, letterSpacing: -1.2),
             ),
             const SizedBox(height: 12),
             Text(
               'Найдите музыку по названию или вставьте ссылки. Название, исполнитель и '
               'обложка определятся сами, а нужное можно отметить галочками.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16, height: 1.5),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: phone ? 15 : 16, height: 1.5),
             ),
-            const SizedBox(height: 26),
+            SizedBox(height: phone ? 20 : 26),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
               child: LinkInput(c: c, hero: true),
             ),
-            const SizedBox(height: 36),
+            SizedBox(height: phone ? 24 : 36),
             Wrap(
-              spacing: 32,
+              spacing: phone ? 20 : 32,
               runSpacing: 10,
               alignment: WrapAlignment.center,
               children: [
@@ -221,9 +481,10 @@ String linksLabel(int n) {
 }
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.c});
+  const _ActionBar({required this.c, required this.phone});
 
   final Controller c;
+  final bool phone;
 
   Future<void> _browse() async {
     final path = await getDirectoryPath(initialDirectory: c.dir.isEmpty ? null : c.dir);
@@ -241,13 +502,73 @@ class _ActionBar extends StatelessWidget {
         final tracks = ready.fold(0, (n, d) => n + d.trackCount);
         final loading = drafts.where((d) => d.loading).length;
         final summary = [
-          if (ready.isNotEmpty)
-            '${linksLabel(ready.length)} · ${tracksLabel(tracks)}'
-          else
-            'Нечего скачивать',
+          if (ready.isNotEmpty) '${linksLabel(ready.length)} · ${tracksLabel(tracks)}' else 'Нечего скачивать',
           if (loading > 0) 'загружается $loading',
         ].join(' · ');
         final lossless = c.quality == Quality.lossless;
+        final quality = MenuAnchor(
+          alignmentOffset: const Offset(0, -4),
+          menuChildren: [
+            for (final (q, label) in [(Quality.lossless, 'FLAC (без потерь)'), (Quality.mp3, 'MP3 320')])
+              MenuItemButton(
+                leadingIcon: Icon(c.quality == q ? Icons.check_rounded : null),
+                onPressed: () => c.setQuality(q),
+                child: Text(label),
+              ),
+          ],
+          builder: (context, menu, _) => Tooltip(
+            message: 'Качество',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => menu.isOpen ? menu.close() : menu.open(),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tag(lossless ? 'FLAC' : 'MP3 320', icon: Icons.graphic_eq_rounded, color: context.status.accent),
+                    Icon(Icons.expand_more_rounded, size: 18, color: scheme.onSurfaceVariant),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final download = FilledButton.icon(
+          onPressed: ready.isEmpty ? null : c.downloadAll,
+          icon: const Icon(Icons.download_rounded),
+          label: Text(ready.length > 1 ? 'Скачать всё' : 'Скачать'),
+        );
+        if (phone) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 12, 12),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLowest,
+              border: Border(top: BorderSide(color: scheme.outlineVariant)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        summary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                    ),
+                    quality,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                download,
+              ],
+            ),
+          );
+        }
         return Container(
           height: 76,
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -259,41 +580,7 @@ class _ActionBar extends StatelessWidget {
             children: [
               Text(summary, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               const SizedBox(width: 10),
-              MenuAnchor(
-                alignmentOffset: const Offset(0, -4),
-                menuChildren: [
-                  for (final (q, label) in [
-                    (Quality.lossless, 'FLAC (без потерь)'),
-                    (Quality.mp3, 'MP3 320'),
-                  ])
-                    MenuItemButton(
-                      leadingIcon: Icon(c.quality == q ? Icons.check_rounded : null),
-                      onPressed: () => c.setQuality(q),
-                      child: Text(label),
-                    ),
-                ],
-                builder: (context, menu, _) => Tooltip(
-                  message: 'Качество',
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => menu.isOpen ? menu.close() : menu.open(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Tag(
-                            lossless ? 'FLAC' : 'MP3 320',
-                            icon: Icons.graphic_eq_rounded,
-                            color: context.status.accent,
-                          ),
-                          Icon(Icons.expand_more_rounded, size: 18, color: scheme.onSurfaceVariant),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              quality,
               const SizedBox(width: 6),
               Expanded(
                 child: Align(
@@ -326,11 +613,7 @@ class _ActionBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              FilledButton.icon(
-                onPressed: ready.isEmpty ? null : c.downloadAll,
-                icon: const Icon(Icons.download_rounded),
-                label: Text(ready.length > 1 ? 'Скачать всё' : 'Скачать'),
-              ),
+              download,
             ],
           ),
         );
@@ -344,21 +627,6 @@ class _AccountPill extends StatelessWidget {
 
   final Controller c;
   final bool compact;
-
-  Future<void> _logout(BuildContext context) async {
-    final running = c.running;
-    final drafts = c.drafts.value.length;
-    if (running > 0 || drafts > 0) {
-      final body = [
-        if (running > 0) 'Незавершённые загрузки остановятся: $running.',
-        if (drafts > 0) 'Подборка очистится: ${linksLabel(drafts)}.',
-        'Скачанные файлы останутся на диске.',
-      ].join(' ');
-      final ok = await confirm(context, title: 'Выйти из аккаунта?', body: body, action: 'Выйти');
-      if (!ok) return;
-    }
-    c.logout();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +650,7 @@ class _AccountPill extends StatelessWidget {
         ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.logout_rounded),
-          onPressed: () => _logout(context),
+          onPressed: () => _logout(context, c),
           child: const Text('Выйти'),
         ),
       ],

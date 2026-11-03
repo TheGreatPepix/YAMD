@@ -7,6 +7,27 @@ class Desktop {
 
   static const restartFlag = '--restart';
   static const _channel = MethodChannel('yamd/desktop');
+  static const _android = MethodChannel('yamd/android');
+
+  bool get canReveal => !Platform.isAndroid;
+
+  Future<bool> storageGranted() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _android.invokeMethod<bool>('storageGranted') ?? true;
+    } on MissingPluginException {
+      return true;
+    }
+  }
+
+  Future<void> requestStorage() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _android.invokeMethod<void>('requestStorage');
+    } on MissingPluginException {
+      return;
+    }
+  }
 
   final List<String> args;
 
@@ -30,6 +51,10 @@ class Desktop {
   void showWindow() => _call('show');
 
   void open(String target) {
+    if (Platform.isAndroid) {
+      _android.invokeMethod<bool>('open', target);
+      return;
+    }
     if (Platform.isWindows) {
       if (target.startsWith('http')) {
         Process.run('rundll32', ['url.dll,FileProtocolHandler', target]);
@@ -42,6 +67,7 @@ class Desktop {
   }
 
   void reveal(String file) {
+    if (Platform.isAndroid) return;
     if (Platform.isWindows) {
       Process.run('explorer.exe', ['/select,', file]);
     } else if (Platform.isMacOS) {
@@ -52,6 +78,10 @@ class Desktop {
   }
 
   Future<void> quit() async {
+    if (Platform.isAndroid) {
+      await SystemNavigator.pop();
+      return;
+    }
     if (Platform.isWindows) {
       try {
         await _channel.invokeMethod<void>('quit');
@@ -64,6 +94,9 @@ class Desktop {
   }
 
   Future<void> restart() async {
+    if (Platform.isAndroid) {
+      exit(0);
+    }
     final exe = Platform.environment['APPIMAGE'] ?? Platform.resolvedExecutable;
     final next = [...args.where((a) => a != restartFlag), restartFlag];
     await Process.start(exe, next, mode: ProcessStartMode.detached);

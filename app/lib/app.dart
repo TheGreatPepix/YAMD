@@ -87,12 +87,14 @@ class _YmdAppState extends State<YmdApp> {
       NoticeKind.ok => (Icons.check_circle_rounded, ctx.status.success),
       NoticeKind.info => (Icons.info_rounded, scheme.primary),
     };
-    final panel = c.downloadsOpen.value && MediaQuery.sizeOf(ctx).width > 900;
+    final width = MediaQuery.sizeOf(ctx).width;
+    final panel = c.downloadsOpen.value && width > 900;
+    final phone = width < phoneWidth;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          width: panel ? null : 460,
+          width: panel || phone ? null : 460,
           margin: panel ? const EdgeInsets.fromLTRB(20, 0, 472, 16) : null,
           backgroundColor: scheme.surfaceContainerHighest,
           persist: false,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'core/android_core.dart';
 import 'core/core.dart';
 import 'core/fake_core.dart';
 import 'desktop.dart';
@@ -14,6 +15,8 @@ Future<void> main(List<String> args) async {
   final Core core;
   if (args.contains('--demo') || const bool.fromEnvironment('YMD_DEMO')) {
     core = FakeCore();
+  } else if (Platform.isAndroid) {
+    core = AndroidCore();
   } else {
     final path = Platform.environment['YMCORE'] ?? ProcessCore.beside(exe);
     core = path == null ? _MissingCore() : await ProcessCore.start(path);

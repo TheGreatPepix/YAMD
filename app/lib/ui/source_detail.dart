@@ -223,7 +223,7 @@ class _ArtistViewState extends State<_ArtistView> {
           Padding(
             padding: const EdgeInsets.only(right: 28),
             child: Text(
-              'Галочка выбирает релиз целиком, клик по обложке открывает его треки',
+              'Галочка выбирает релиз целиком, нажатие на обложку открывает его треки',
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
           ),

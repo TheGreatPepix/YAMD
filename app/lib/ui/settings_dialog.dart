@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../state/controller.dart';
 import '../state/models.dart';
 import '../theme.dart';
+import 'widgets.dart';
 import 'update_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context, Controller c) {
@@ -24,13 +25,14 @@ class _SettingsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final phone = isPhone(context);
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: ListenableBuilder(
           listenable: c,
           builder: (context, _) => SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
+            padding: EdgeInsets.fromLTRB(phone ? 20 : 28, 24, phone ? 20 : 28, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,12 +65,14 @@ class _SettingsDialog extends StatelessWidget {
                           child: Text(c.dir, maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Открыть',
-                        icon: const Icon(Icons.open_in_new_rounded, size: 20),
-                        onPressed: c.dir.isEmpty ? null : () => c.openFolder(c.dir),
-                      ),
-                      FilledButton.tonal(onPressed: _browse, child: const Text('Изменить')),
+                      if (c.desktop.canReveal) ...[
+                        IconButton(
+                          tooltip: 'Открыть',
+                          icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                          onPressed: c.dir.isEmpty ? null : () => c.openFolder(c.dir),
+                        ),
+                        FilledButton.tonal(onPressed: _browse, child: const Text('Изменить')),
+                      ],
                     ],
                   ),
                 ),
@@ -76,16 +80,16 @@ class _SettingsDialog extends StatelessWidget {
                 const _Label('Качество'),
                 SegmentedButton<Quality>(
                   showSelectedIcon: false,
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: Quality.lossless,
-                      icon: Icon(Icons.graphic_eq_rounded),
-                      label: Text('FLAC (без потерь)'),
+                      icon: phone ? null : const Icon(Icons.graphic_eq_rounded),
+                      label: Text(phone ? 'FLAC' : 'FLAC (без потерь)'),
                     ),
                     ButtonSegment(
                       value: Quality.mp3,
-                      icon: Icon(Icons.music_note_rounded),
-                      label: Text('MP3 320'),
+                      icon: phone ? null : const Icon(Icons.music_note_rounded),
+                      label: const Text('MP3 320'),
                     ),
                   ],
                   selected: {c.quality},
@@ -123,21 +127,21 @@ class _SettingsDialog extends StatelessWidget {
                 const _Label('Тема'),
                 SegmentedButton<ThemeChoice>(
                   showSelectedIcon: false,
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: ThemeChoice.system,
-                      icon: Icon(Icons.brightness_auto_rounded),
-                      label: Text('Системная'),
+                      icon: phone ? null : const Icon(Icons.brightness_auto_rounded),
+                      label: const Text('Системная'),
                     ),
                     ButtonSegment(
                       value: ThemeChoice.light,
-                      icon: Icon(Icons.light_mode_rounded),
-                      label: Text('Светлая'),
+                      icon: phone ? null : const Icon(Icons.light_mode_rounded),
+                      label: const Text('Светлая'),
                     ),
                     ButtonSegment(
                       value: ThemeChoice.dark,
-                      icon: Icon(Icons.dark_mode_rounded),
-                      label: Text('Тёмная'),
+                      icon: phone ? null : const Icon(Icons.dark_mode_rounded),
+                      label: const Text('Тёмная'),
                     ),
                   ],
                   selected: {c.theme},

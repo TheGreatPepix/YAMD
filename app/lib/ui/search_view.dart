@@ -120,16 +120,23 @@ class _Filters extends StatelessWidget {
       for (final k in searchKinds)
         if (all == null || all.status != SearchStatus.ok || (all[k]?.hits.isNotEmpty ?? false)) k,
     ];
+    final chips = [chip('Всё', null), for (final k in kinds) chip(sectionTitle(k), k)];
+    final phone = isPhone(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
+      padding: EdgeInsets.fromLTRB(phone ? 16 : 28, phone ? 10 : 16, phone ? 4 : 16, 8),
       child: Row(
         children: [
           Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [chip('Всё', null), for (final k in kinds) chip(sectionTitle(k), k)],
-            ),
+            child: phone
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final (i, w) in chips.indexed) ...[if (i > 0) const SizedBox(width: 8), w],
+                      ],
+                    ),
+                  )
+                : Wrap(spacing: 8, runSpacing: 8, children: chips),
           ),
           const SizedBox(width: 8),
           IconButton(tooltip: 'Закрыть поиск', onPressed: s.close, icon: const Icon(Icons.close_rounded)),
@@ -248,7 +255,7 @@ class _AllResults extends StatelessWidget {
           children: [for (final h in list) HitRow(c: c, hit: h)],
         );
         return ListView(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+          padding: EdgeInsets.fromLTRB(sidePad(context), 0, sidePad(context), 28),
           children: [
             if (r.corrected.isNotEmpty)
               Padding(
@@ -336,13 +343,13 @@ class _KindResults extends StatelessWidget {
         : const SizedBox.shrink();
     if (kind == ReleaseKind.track) {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(28, 4, 28, 28),
+        padding: EdgeInsets.fromLTRB(sidePad(context), 4, sidePad(context), 28),
         itemCount: hits.length + 1,
         itemBuilder: (_, i) => i == hits.length ? footer : HitRow(c: c, hit: hits[i]),
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(28, 12, 28, 28),
+      padding: EdgeInsets.fromLTRB(sidePad(context), 12, sidePad(context), 28),
       children: [
         HitGrid(c: c, hits: hits),
         footer,
@@ -562,11 +569,11 @@ class BestCard extends StatelessWidget {
         canRequestFocus: false,
         onTap: () => c.toggleHit(hit),
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(isPhone(context) ? 14 : 18),
           child: Row(
             children: [
-              Cover(url: hit.cover, size: 104, kind: hit.kind, radius: 12),
-              const SizedBox(width: 18),
+              Cover(url: hit.cover, size: isPhone(context) ? 76 : 104, kind: hit.kind, radius: 12),
+              SizedBox(width: isPhone(context) ? 14 : 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,7 +613,7 @@ class BestCard extends StatelessWidget {
                         : FilledButton.icon(
                             onPressed: () => c.toggleHit(hit),
                             icon: const Icon(Icons.add_rounded, size: 18),
-                            label: const Text('Добавить в подборку'),
+                            label: Text(isPhone(context) ? 'В подборку' : 'Добавить в подборку'),
                           ),
                   ],
                 ),

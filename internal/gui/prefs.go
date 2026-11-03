@@ -28,7 +28,12 @@ type config struct {
 	DeviceID string `json:"deviceId,omitempty"`
 }
 
+var DefaultDir string
+
 func defaultDir() string {
+	if DefaultDir != "" {
+		return DefaultDir
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""

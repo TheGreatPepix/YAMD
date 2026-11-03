@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../state/models.dart';
 import '../theme.dart';
 
+const phoneWidth = 600.0;
+
+bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < phoneWidth;
+
+double sidePad(BuildContext context) => isPhone(context) ? 16 : 28;
+
 Duration motion(BuildContext context, Duration d) =>
     MediaQuery.maybeDisableAnimationsOf(context) == true ? Duration.zero : d;
 
@@ -19,13 +25,6 @@ class BrandMark extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: brandGradient,
         borderRadius: BorderRadius.circular(size * 0.3),
-        boxShadow: [
-          BoxShadow(
-            color: brandOrange.withValues(alpha: 0.35),
-            blurRadius: size * 0.5,
-            offset: Offset(0, size * 0.12),
-          ),
-        ],
       ),
       child: Icon(Icons.download_rounded, size: size * 0.6, color: const Color(0xFF1A1600)),
     );

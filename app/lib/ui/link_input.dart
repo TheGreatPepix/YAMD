@@ -5,6 +5,7 @@ import '../state/controller.dart';
 import '../state/draft.dart';
 import '../state/search.dart';
 import '../theme.dart';
+import 'widgets.dart';
 
 class LinkInput extends StatefulWidget {
   const LinkInput({super.key, required this.c, this.hero = false});
@@ -83,13 +84,37 @@ class _LinkInputState extends State<LinkInput> {
     final scheme = Theme.of(context).colorScheme;
     final accent = context.status.accent;
     final hero = widget.hero;
+    final phone = MediaQuery.sizeOf(context).width < phoneWidth;
     return ListenableBuilder(
       listenable: _input,
       builder: (context, _) {
         final text = _input.text.trim();
         final empty = text.isEmpty;
         final link = looksLikeLinks(text);
-        final Widget action = hero
+        final icon = empty
+            ? Icons.content_paste_rounded
+            : link
+            ? Icons.add_rounded
+            : Icons.search_rounded;
+        final Widget action = hero && phone
+            ? Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton.filled(
+                  tooltip: empty
+                      ? 'Вставить'
+                      : link
+                      ? 'Добавить'
+                      : 'Найти',
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(52, 44),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                  onPressed: empty ? _paste : _submit,
+                  icon: Icon(icon, size: 20),
+                ),
+              )
+            : hero
             ? Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: FilledButton.icon(
@@ -160,7 +185,7 @@ class _LinkInputState extends State<LinkInput> {
             child: TextField(
               controller: _input,
               focusNode: _focus,
-              autofocus: true,
+              autofocus: !phone,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _submit(),
               style: TextStyle(fontSize: hero ? 16 : 14),

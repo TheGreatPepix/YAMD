@@ -311,6 +311,12 @@ class Controller extends ChangeNotifier {
       _notices.add(Notice('Не удалось обновить YAMD: $error', kind: NoticeKind.error));
       return;
     }
+    if (ev['installer'] == true) {
+      updating = false;
+      updateProgress.value = null;
+      _notices.add(Notice('Обновление скачано. Подтвердите установку в окне Android', kind: NoticeKind.info));
+      return;
+    }
     updating = true;
     final done = (ev['done'] as num?)?.toDouble() ?? 0;
     final total = (ev['total'] as num?)?.toDouble() ?? 0;

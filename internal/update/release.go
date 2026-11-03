@@ -199,23 +199,26 @@ func Check(current string) Info {
 	return info
 }
 
-func Install(current string, windowPID int, progress func(done, total int64)) error {
+func Install(current string, windowPID int, progress func(done, total int64)) (string, error) {
 	r, err := latestRelease(current)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !newer(r.Tag, current) {
-		return fmt.Errorf("YAMD %s уже последней версии", current)
+		return "", fmt.Errorf("YAMD %s уже последней версии", current)
 	}
 	a, ok := r.asset(assetName)
 	if !ok {
-		return fmt.Errorf("в релизе %s нет файла %s, скачайте его со страницы %s", r.Tag, assetName, r.Page)
+		return "", fmt.Errorf("в релизе %s нет файла %s, скачайте его со страницы %s", r.Tag, assetName, r.Page)
 	}
 	p, err := stage(a, progress)
 	if err != nil {
-		return err
+		return "", err
+	}
+	if p.Package != "" {
+		return p.Package, nil
 	}
 	p.Wait = []int{windowPID, os.Getpid()}
 	p.Version = strings.TrimPrefix(r.Tag, "v")
-	return spawn(p)
+	return "", spawn(p)
 }

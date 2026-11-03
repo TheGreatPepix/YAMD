@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../state/controller.dart';
@@ -29,7 +31,9 @@ class _UpdateDialog extends StatelessWidget {
             var about = 'У вас версия ${u.current}.';
             if (u.published.isNotEmpty) about += ' Версия ${u.latest} вышла ${u.published}.';
             about += u.canApply
-                ? ' YAMD скачает её и перезапустится.'
+                ? Platform.isAndroid
+                    ? ' YAMD скачает её и откроет установщик Android.'
+                    : ' YAMD скачает её и перезапустится.'
                 : ' Скачайте её со страницы релиза.';
             final notes = u.notes.length > 3000 ? '${u.notes.substring(0, 3000)}…' : u.notes;
             return Padding(
@@ -66,7 +70,9 @@ class _UpdateDialog extends StatelessWidget {
                     LinearProgressIndicator(value: c.updateProgress.value),
                     const SizedBox(height: 8),
                     Text(
-                      'Скачиваю обновление, YAMD перезапустится сам…',
+                      Platform.isAndroid
+                          ? 'Скачиваю обновление, потом откроется установщик…'
+                          : 'Скачиваю обновление, YAMD перезапустится сам…',
                       style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ] else if (u.canApply && busy) ...[

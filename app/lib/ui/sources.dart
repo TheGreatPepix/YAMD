@@ -33,9 +33,10 @@ String draftSummary(Draft d) {
 }
 
 class SourceList extends StatelessWidget {
-  const SourceList({super.key, required this.c});
+  const SourceList({super.key, required this.c, this.onOpen});
 
   final Controller c;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +84,7 @@ class SourceList extends StatelessWidget {
                   draft: drafts[i],
                   selected: drafts[i] == c.selected.value,
                   c: c,
+                  onOpen: onOpen,
                 ),
               ),
             ),
@@ -94,11 +96,12 @@ class SourceList extends StatelessWidget {
 }
 
 class SourceRow extends StatelessWidget {
-  const SourceRow({super.key, required this.draft, required this.selected, required this.c});
+  const SourceRow({super.key, required this.draft, required this.selected, required this.c, this.onOpen});
 
   final Draft draft;
   final bool selected;
   final Controller c;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +127,10 @@ class SourceRow extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => c.selected.value = draft,
+            onTap: () {
+              c.selected.value = draft;
+              onOpen?.call();
+            },
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
               child: Row(
