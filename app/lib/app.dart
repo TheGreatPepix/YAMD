@@ -25,7 +25,9 @@ class _YmdAppState extends State<YmdApp> {
   final _navigator = GlobalKey<NavigatorState>();
   StreamSubscription<Notice>? _notices;
   StreamSubscription<UpdateInfo>? _offers;
+  StreamSubscription<void>? _exits;
   var _offerPending = false;
+  var _askingExit = false;
 
   Controller get c => widget.controller;
 
@@ -37,8 +39,23 @@ class _YmdAppState extends State<YmdApp> {
       _offerPending = true;
       _offerUpdate();
     });
+    _exits = c.exitRequests.listen((_) => _confirmExit());
     c.addListener(_offerUpdate);
     c.start();
+  }
+
+  Future<void> _confirmExit() async {
+    final ctx = _navigator.currentContext;
+    if (_askingExit || ctx == null) return;
+    _askingExit = true;
+    final ok = await confirm(
+      ctx,
+      title: 'Выйти из YAMD?',
+      body: 'Незавершённые загрузки: ${c.running}. Они остановятся, готовые треки останутся.',
+      action: 'Выйти',
+    );
+    _askingExit = false;
+    if (ok) c.quit();
   }
 
   void _offerUpdate() {
@@ -56,6 +73,7 @@ class _YmdAppState extends State<YmdApp> {
     c.removeListener(_offerUpdate);
     _notices?.cancel();
     _offers?.cancel();
+    _exits?.cancel();
     super.dispose();
   }
 
@@ -77,6 +95,8 @@ class _YmdAppState extends State<YmdApp> {
           width: panel ? null : 460,
           margin: panel ? const EdgeInsets.fromLTRB(20, 0, 472, 16) : null,
           backgroundColor: scheme.surfaceContainerHighest,
+          persist: false,
+          duration: Duration(seconds: n.onAction == null ? 4 : 8),
           action: n.onAction == null
               ? null
               : SnackBarAction(label: n.action, textColor: ctx.status.accent, onPressed: n.onAction!),

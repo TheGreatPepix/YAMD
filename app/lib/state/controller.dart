@@ -12,6 +12,7 @@ import 'search.dart';
 class Controller extends ChangeNotifier {
   Controller(this.core, {Desktop? desktop}) : desktop = desktop ?? Desktop() {
     _sub = core.events.listen(_receive);
+    this.desktop.listen(exit: _trayExit);
   }
 
   final Core core;
@@ -23,6 +24,9 @@ class Controller extends ChangeNotifier {
 
   final _updateOffers = StreamController<UpdateInfo>.broadcast();
   Stream<UpdateInfo> get updateOffers => _updateOffers.stream;
+
+  final _exitRequests = StreamController<void>.broadcast();
+  Stream<void> get exitRequests => _exitRequests.stream;
 
   var ready = false;
   String? fatal;
@@ -58,6 +62,23 @@ class Controller extends ChangeNotifier {
   int get running => _jobs.values.where((j) => !j.finished).length;
 
   void restart() => desktop.restart();
+
+  void _trayExit() {
+    if (!downloading) {
+      quit();
+      return;
+    }
+    desktop.showWindow();
+    _exitRequests.add(null);
+  }
+
+  void quit() {
+    if (fatal != null) {
+      desktop.quit();
+    } else {
+      send({'cmd': 'exit'});
+    }
+  }
 
   void start() => send({'cmd': 'ready'});
 
@@ -394,6 +415,7 @@ class Controller extends ChangeNotifier {
     _sub.cancel();
     _notices.close();
     _updateOffers.close();
+    _exitRequests.close();
     updateProgress.dispose();
     for (final j in _jobs.values) {
       j.dispose();

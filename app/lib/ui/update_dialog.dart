@@ -29,7 +29,7 @@ class _UpdateDialog extends StatelessWidget {
             var about = 'У вас версия ${u.current}.';
             if (u.published.isNotEmpty) about += ' Версия ${u.latest} вышла ${u.published}.';
             about += u.canApply
-                ? ' YAMD скачает её и перезапустится, вход и настройки сохранятся.'
+                ? ' YAMD скачает её и перезапустится.'
                 : ' Скачайте её со страницы релиза.';
             final notes = u.notes.length > 3000 ? '${u.notes.substring(0, 3000)}…' : u.notes;
             return Padding(
