@@ -10,6 +10,7 @@ import 'log_dialog.dart';
 import 'settings_dialog.dart';
 import 'source_detail.dart';
 import 'sources.dart';
+import 'update_dialog.dart';
 import 'widgets.dart';
 
 class MainPage extends StatelessWidget {
@@ -105,6 +106,7 @@ class _Header extends StatelessWidget {
                   : const SizedBox.shrink(),
             ),
             const SizedBox(width: 24),
+            UpdateButton(c: c),
             DownloadsButton(c: c),
             const SizedBox(width: 6),
             IconButton(

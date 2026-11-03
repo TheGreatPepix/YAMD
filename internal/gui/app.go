@@ -23,6 +23,7 @@ type App struct {
 	host *coreHost
 	logs logBuffer
 	jobs *manager
+	upd  selfUpdate
 
 	mu      sync.Mutex
 	cfg     config
@@ -50,6 +51,7 @@ func newApp() *App {
 
 func (g *App) start() {
 	g.jobs = newManager(g, g.cfg.Concurrency)
+	g.startUpdates()
 	if g.token != "" {
 		g.checkAccount(g.token, false)
 	}
@@ -194,6 +196,10 @@ func (g *App) startDownload(link, dir string, sel yam.Selection) {
 
 	if sess == nil {
 		g.notice(yam.ErrNoPlus.Error(), "error")
+		return
+	}
+	if g.updating() {
+		g.notice("Идёт обновление YAMD", "error")
 		return
 	}
 	if _, err := yam.ParseLink(link); err != nil {

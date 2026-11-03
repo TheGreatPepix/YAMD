@@ -38,6 +38,11 @@ func (g *App) onMessage(message string) {
 		g.mu.Unlock()
 		g.emit(acc)
 		g.jobs.emitAll()
+		g.onReady()
+	case "checkUpdate":
+		g.checkUpdate(false)
+	case "applyUpdate":
+		g.applyUpdate()
 	case "login":
 		token := extractToken(c.Token)
 		if token == "" {

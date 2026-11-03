@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/services.dart';
-
 class Desktop {
   void open(String target) {
     if (Platform.isWindows) {
@@ -25,5 +23,5 @@ class Desktop {
     }
   }
 
-  void quit() => SystemNavigator.pop();
+  void quit() => exit(0);
 }

@@ -223,6 +223,22 @@ class Stats {
   bool get busy => active > 0 || queued > 0;
 }
 
+class UpdateInfo {
+  UpdateInfo.fromJson(Map<String, dynamic> j)
+      : current = _str(j['current']),
+        latest = _str(j['latest']),
+        page = _str(j['page']),
+        notes = _str(j['notes']),
+        published = _str(j['published']),
+        error = _str(j['error']),
+        available = j['available'] == true,
+        canApply = j['canApply'] == true,
+        quiet = j['quiet'] == true;
+
+  final String current, latest, page, notes, published, error;
+  final bool available, canApply, quiet;
+}
+
 class Notice {
   const Notice(this.message, {this.kind = NoticeKind.info});
 

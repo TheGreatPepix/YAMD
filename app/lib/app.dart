@@ -7,6 +7,7 @@ import 'state/models.dart';
 import 'theme.dart';
 import 'ui/login_page.dart';
 import 'ui/main_page.dart';
+import 'ui/update_dialog.dart';
 import 'ui/widgets.dart';
 
 class YmdApp extends StatefulWidget {
@@ -20,7 +21,9 @@ class YmdApp extends StatefulWidget {
 
 class _YmdAppState extends State<YmdApp> {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
+  final _navigator = GlobalKey<NavigatorState>();
   StreamSubscription<Notice>? _notices;
+  StreamSubscription<UpdateInfo>? _offers;
 
   Controller get c => widget.controller;
 
@@ -28,12 +31,17 @@ class _YmdAppState extends State<YmdApp> {
   void initState() {
     super.initState();
     _notices = c.notices.listen(_showNotice);
+    _offers = c.updateOffers.listen((_) {
+      final ctx = _navigator.currentContext;
+      if (ctx != null && ctx.mounted) showUpdateDialog(ctx, c);
+    });
     c.start();
   }
 
   @override
   void dispose() {
     _notices?.cancel();
+    _offers?.cancel();
     super.dispose();
   }
 
@@ -72,6 +80,7 @@ class _YmdAppState extends State<YmdApp> {
           title: 'YAMD',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: _messenger,
+          navigatorKey: _navigator,
           theme: buildTheme(Brightness.light),
           darkTheme: buildTheme(Brightness.dark),
           themeMode: switch (c.theme) {

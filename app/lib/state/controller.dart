@@ -20,6 +20,9 @@ class Controller extends ChangeNotifier {
   final _notices = StreamController<Notice>.broadcast();
   Stream<Notice> get notices => _notices.stream;
 
+  final _updateOffers = StreamController<UpdateInfo>.broadcast();
+  Stream<UpdateInfo> get updateOffers => _updateOffers.stream;
+
   var ready = false;
   String? fatal;
 
@@ -29,6 +32,11 @@ class Controller extends ChangeNotifier {
   var quality = Quality.lossless;
   var concurrency = 4;
   var version = '';
+
+  UpdateInfo? update;
+  var checkingUpdate = false;
+  var updating = false;
+  final updateProgress = ValueNotifier<double?>(null);
 
   final drafts = ValueNotifier<List<Draft>>(const []);
   final selected = ValueNotifier<Draft?>(null);
@@ -42,6 +50,8 @@ class Controller extends ChangeNotifier {
   final log = ValueNotifier('');
 
   bool get canDownload => account.status == AccountStatus.ok;
+
+  bool get downloading => _jobs.values.any((j) => !j.finished);
 
   void start() => send({'cmd': 'ready'});
 
@@ -153,6 +163,46 @@ class Controller extends ChangeNotifier {
     notifyListeners();
   }
 
+  void checkUpdate() {
+    checkingUpdate = true;
+    send({'cmd': 'checkUpdate'});
+    notifyListeners();
+  }
+
+  void applyUpdate() {
+    if (updating) return;
+    updating = true;
+    updateProgress.value = null;
+    send({'cmd': 'applyUpdate'});
+    notifyListeners();
+  }
+
+  void _onUpdate(UpdateInfo u) {
+    checkingUpdate = false;
+    update = u;
+    if (u.quiet) {
+      if (u.available) _updateOffers.add(u);
+    } else if (u.error.isNotEmpty) {
+      _notices.add(Notice('Не удалось проверить обновления: ${u.error}', kind: NoticeKind.error));
+    } else if (!u.available) {
+      _notices.add(Notice('У вас последняя версия ${u.current}', kind: NoticeKind.ok));
+    }
+  }
+
+  void _onUpdating(Event ev) {
+    final error = ev['error'];
+    if (error != null) {
+      updating = false;
+      updateProgress.value = null;
+      _notices.add(Notice('Не удалось обновить YAMD: $error', kind: NoticeKind.error));
+      return;
+    }
+    updating = true;
+    final done = (ev['done'] as num?)?.toDouble() ?? 0;
+    final total = (ev['total'] as num?)?.toDouble() ?? 0;
+    updateProgress.value = total > 0 ? (done / total).clamp(0.0, 1.0) : null;
+  }
+
   void openFolder(String path) => desktop.open(path);
 
   void reveal(String file) => desktop.reveal(file);
@@ -236,6 +286,15 @@ class Controller extends ChangeNotifier {
           ),
         );
         return;
+      case 'update':
+        _onUpdate(UpdateInfo.fromJson(ev));
+      case 'updating':
+        final was = updating;
+        _onUpdating(ev);
+        if (was == updating) return;
+      case 'exit':
+        desktop.quit();
+        return;
       case 'fatal':
         fatal = '${ev['message'] ?? ''}';
       case 'coreExited':
@@ -250,6 +309,8 @@ class Controller extends ChangeNotifier {
   void dispose() {
     _sub.cancel();
     _notices.close();
+    _updateOffers.close();
+    updateProgress.dispose();
     for (final j in _jobs.values) {
       j.dispose();
     }

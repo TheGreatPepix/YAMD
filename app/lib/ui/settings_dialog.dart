@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../state/controller.dart';
 import '../state/models.dart';
 import '../theme.dart';
+import 'update_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context, Controller c) {
   return showDialog(context: context, builder: (_) => _SettingsDialog(c: c));
@@ -143,12 +144,9 @@ class _SettingsDialog extends StatelessWidget {
                   onSelectionChanged: (s) => c.setTheme(s.first),
                 ),
                 const SizedBox(height: 22),
-                if (c.version.isNotEmpty)
-                  Text(
-                    'Версия ${c.version}',
-                    textAlign: TextAlign.center,
-                    style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
+                Divider(height: 1, color: scheme.outlineVariant),
+                const SizedBox(height: 18),
+                UpdateRow(c: c),
               ],
             ),
           ),

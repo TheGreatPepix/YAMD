@@ -6,12 +6,12 @@ import 'package:ymd/core/fake_core.dart';
 import 'package:ymd/state/controller.dart';
 import 'package:ymd/state/models.dart';
 
-Future<(FakeCore, Controller)> _open(WidgetTester tester) async {
+Future<(FakeCore, Controller)> _open(WidgetTester tester, {String latest = '2.0.2'}) async {
   tester.view.physicalSize = const Size(1280, 860);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
-  final core = FakeCore();
+  final core = FakeCore(latest: latest);
   final controller = Controller(core);
   await tester.pumpWidget(YmdApp(controller: controller));
   await tester.pumpAndSettle();
@@ -227,6 +227,43 @@ void main() {
     expect((select.single as Map)['tracks'], hasLength(6));
     expect((select.single as Map)['tracks'], isNot(contains('1233')));
     expect(c.jobs.first.tracks, hasLength(6));
+
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+    await core.close();
+  });
+
+  testWidgets('в настройках можно проверить обновления', (tester) async {
+    final (core, c) = await _open(tester);
+    await _login(tester, 'good-token');
+
+    await tester.tap(find.byTooltip('Настройки'));
+    await tester.pumpAndSettle();
+    expect(find.text('Версия 2.0.2'), findsOneWidget);
+
+    await tester.tap(find.text('Проверить'));
+    await tester.pump();
+    expect(find.text('Проверяю обновления…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump();
+    expect(c.update?.available, isFalse);
+    expect(find.text('Это последняя версия'), findsOneWidget);
+
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+    await core.close();
+  });
+
+  testWidgets('новая версия предлагается при запуске', (tester) async {
+    final (core, c) = await _open(tester, latest: '2.1.0');
+
+    expect(find.text('Доступна версия 2.1.0'), findsOneWidget);
+    expect(find.text('Самообновление из релизов GitHub.'), findsOneWidget);
+
+    await tester.tap(find.text('Обновить'));
+    await tester.pump();
+    expect(c.updating, isTrue);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(c.updateProgress.value, 1.0);
 
     await tester.pumpAndSettle(const Duration(seconds: 5));
     await core.close();
