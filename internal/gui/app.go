@@ -10,7 +10,7 @@ import (
 	"ymd/internal/yam"
 )
 
-const Version = "2.1.1"
+const Version = "2.1.2"
 
 const (
 	accNone     = "none"
@@ -21,7 +21,7 @@ const (
 )
 
 type App struct {
-	host *coreHost
+	host *Core
 	logs logBuffer
 	jobs *manager
 	upd  selfUpdate
@@ -165,7 +165,7 @@ func (g *App) logout() {
 
 func (g *App) recheck() {
 	g.mu.Lock()
-	token, sess, acc := g.token, g.session, g.account
+	token, sess, acc, id := g.token, g.session, g.account, g.checkID
 	g.mu.Unlock()
 	if token == "" {
 		g.setAccount(accountEvent{Status: accNone})
@@ -179,6 +179,12 @@ func (g *App) recheck() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		fresh, err := sess.Refresh(ctx)
+		g.mu.Lock()
+		stale := id != g.checkID || sess != g.session
+		g.mu.Unlock()
+		if stale {
+			return
+		}
 		switch {
 		case err == nil:
 			g.setAccount(accountEvent{Status: accOK, Login: fresh.Login, Name: fresh.Name, HasPlus: true})

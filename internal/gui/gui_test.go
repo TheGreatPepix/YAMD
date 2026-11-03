@@ -3,6 +3,7 @@ package gui
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -120,5 +121,60 @@ func TestSearchError(t *testing.T) {
 		if got := searchError(err); got != want {
 			t.Errorf("searchError(%v) = %q, want %q", err, got, want)
 		}
+	}
+}
+
+func TestCoreLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	for _, v := range []string{"AppData", "HOME", "XDG_CONFIG_HOME"} {
+		t.Setenv(v, dir)
+	}
+	events := make(chan map[string]any, 64)
+	core := Start(func(event []byte) {
+		var e map[string]any
+		if err := json.Unmarshal(event, &e); err != nil {
+			t.Errorf("событие не JSON: %q", event)
+			return
+		}
+		events <- e
+	})
+	next := func() map[string]any {
+		select {
+		case e := <-events:
+			return e
+		case <-time.After(5 * time.Second):
+			t.Fatal("ядро не прислало событие")
+			return nil
+		}
+	}
+
+	core.Send([]byte("not json"))
+	core.Send([]byte(`{"theme":"light"}`))
+	core.Send([]byte(`{"cmd":"prefs","theme":"light"}`))
+	if e := next(); e["type"] != "state" || e["theme"] != "light" || e["version"] != Version {
+		t.Fatalf("ждали state с темой light, пришло %v", e)
+	}
+
+	core.Close()
+	if e := next(); e["type"] != "exit" {
+		t.Fatalf("ждали exit, пришло %v", e)
+	}
+	done := make(chan struct{})
+	go func() {
+		core.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait не вернулся после Close")
+	}
+
+	core.Send([]byte(`{"cmd":"prefs","theme":"dark"}`))
+	core.app.emitState(false)
+	select {
+	case e := <-events:
+		t.Fatalf("событие после exit: %v", e)
+	case <-time.After(50 * time.Millisecond):
 	}
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ymd/app.dart';
+import 'package:ymd/core/core.dart';
 import 'package:ymd/core/fake_core.dart';
 import 'package:ymd/state/controller.dart';
 import 'package:ymd/state/models.dart';
@@ -10,7 +11,7 @@ import 'package:ymd/state/search.dart';
 
 Future<(FakeCore, Controller)> _open(
   WidgetTester tester, {
-  String latest = '2.1.1',
+  String latest = '2.1.2',
   Duration tick = const Duration(milliseconds: 120),
 }) async {
   tester.view.physicalSize = const Size(1280, 860);
@@ -46,12 +47,37 @@ Future<void> _downloadAll(WidgetTester tester) async {
   await tester.pump();
 }
 
+class _DeadCore implements Core {
+  @override
+  Stream<Event> get events => Stream.value({
+        'type': 'coreExited',
+        'code': 2,
+        'stderr': 'panic: boom\n\ngoroutine 1 [running]:\n',
+      });
+
+  @override
+  void send(Map<String, Object?> command) {}
+
+  @override
+  Future<void> close() async {}
+}
+
 void main() {
+  testWidgets('вывод упавшего ядра попадает в журнал', (tester) async {
+    final controller = Controller(_DeadCore());
+    await tester.pumpWidget(YmdApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ядро остановилось (код 2).'), findsOneWidget);
+    expect(controller.log.value, contains('panic: boom'));
+    expect(find.text('Скопировать журнал'), findsOneWidget);
+  });
+
   testWidgets('без входа виден только экран входа', (tester) async {
     final (core, c) = await _open(tester);
 
     expect(c.ready, isTrue);
-    expect(c.version, '2.1.1');
+    expect(c.version, '2.1.2');
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('Что скачаем?'), findsNothing);
 
@@ -254,7 +280,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Настройки'));
     await tester.pumpAndSettle();
-    expect(find.text('Версия 2.1.1'), findsOneWidget);
+    expect(find.text('Версия 2.1.2'), findsOneWidget);
 
     await tester.tap(find.text('Проверить'));
     await tester.pump();

@@ -14,11 +14,18 @@ class ProcessCore implements Core {
   ProcessCore._(this._process) {
     _process.stdin.encoding = utf8;
     _process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(_line, onDone: _ended);
-    _process.stderr.drain<void>();
+    _stderrDone = _process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .forEach(_keepStderr)
+        .catchError((Object _) {});
   }
+
+  static const _stderrLimit = 16 << 10;
 
   final Process _process;
   final _events = StreamController<Event>();
+  late final Future<void> _stderrDone;
+  var _stderr = '';
   var _closed = false;
 
   static Future<ProcessCore> start(String exe) async {
@@ -48,9 +55,15 @@ class ProcessCore implements Core {
     if (event is Event) _events.add(event);
   }
 
+  void _keepStderr(String chunk) {
+    _stderr += chunk;
+    if (_stderr.length > _stderrLimit) _stderr = _stderr.substring(_stderr.length - _stderrLimit);
+  }
+
   Future<void> _ended() async {
     final code = await _process.exitCode;
-    _events.add({'type': 'coreExited', 'code': code});
+    await _stderrDone.timeout(const Duration(seconds: 2), onTimeout: () {});
+    _events.add({'type': 'coreExited', 'code': code, 'stderr': _stderr});
     await _events.close();
   }
 

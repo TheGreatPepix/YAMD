@@ -404,6 +404,8 @@ class Controller extends ChangeNotifier {
         fatal = '${ev['message'] ?? ''}';
       case 'coreExited':
         fatal ??= 'Ядро остановилось (код ${ev['code']}).';
+        final stderr = '${ev['stderr'] ?? ''}'.trim();
+        if (stderr.isNotEmpty) _appendLog('Вывод ядра перед остановкой:\n$stderr\n');
       default:
         return;
     }

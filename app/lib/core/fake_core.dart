@@ -3,7 +3,7 @@ import 'dart:async';
 import 'core.dart';
 
 class FakeCore implements Core {
-  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.1.1'});
+  FakeCore({this.tick = const Duration(milliseconds: 120), this.latest = '2.1.2'});
 
   final Duration tick;
   final String latest;
@@ -49,7 +49,7 @@ class FakeCore implements Core {
         'theme': _theme,
         'quality': _quality,
         'concurrency': _concurrency,
-        'version': '2.1.1',
+        'version': '2.1.2',
       };
 
   @override
@@ -58,7 +58,7 @@ class FakeCore implements Core {
       case 'ready':
         _emit(_state());
         _emit({'type': 'account', 'status': 'none'});
-        if (latest != '2.1.1') _emit({..._update(), 'quiet': true});
+        if (latest != '2.1.2') _emit({..._update(), 'quiet': true});
       case 'checkUpdate':
         _later(tick, () => _emit(_update()));
       case 'applyUpdate':
@@ -178,13 +178,13 @@ class FakeCore implements Core {
 
   Map<String, Object?> _update() => {
         'type': 'update',
-        'current': '2.1.1',
+        'current': '2.1.2',
         'latest': latest,
         'page': 'https://github.com/TheGreatPepix/YMD/releases/tag/v$latest',
-        'notes': latest == '2.1.1' ? '' : 'Самообновление из релизов GitHub.',
+        'notes': latest == '2.1.2' ? '' : 'Самообновление из релизов GitHub.',
         'published': '02.11.2026',
-        'available': latest != '2.1.1',
-        'canApply': latest != '2.1.1',
+        'available': latest != '2.1.2',
+        'canApply': latest != '2.1.2',
       };
 
   static (String, String, String, int, int) _release(String link) {

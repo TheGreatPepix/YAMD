@@ -263,9 +263,12 @@ type coverCache struct {
 	m  map[string]*coverEntry
 }
 
+const coverAttempts = 3
+
 type coverEntry struct {
-	once sync.Once
-	data []byte
+	turn  chan struct{}
+	data  []byte
+	fails int
 }
 
 func (s *Session) cover(ctx context.Context, uri string) []byte {
@@ -278,17 +281,27 @@ func (s *Session) cover(ctx context.Context, uri string) []byte {
 	}
 	e := s.covers.m[uri]
 	if e == nil {
-		e = &coverEntry{}
+		e = &coverEntry{turn: make(chan struct{}, 1)}
 		s.covers.m[uri] = e
 	}
 	s.covers.mu.Unlock()
 
-	e.once.Do(func() {
-		b, err := s.fetch(ctx, http.MethodGet, CoverURL(uri, coverSize), nil, false)
-		if err == nil && len(b) > 0 {
-			e.data = b
-		}
-	})
+	select {
+	case e.turn <- struct{}{}:
+	case <-ctx.Done():
+		return nil
+	}
+	defer func() { <-e.turn }()
+	if e.data != nil || e.fails >= coverAttempts {
+		return e.data
+	}
+	b, err := s.fetch(ctx, http.MethodGet, CoverURL(uri, coverSize), nil, false)
+	switch {
+	case err == nil && len(b) > 0:
+		e.data = b
+	case ctx.Err() == nil:
+		e.fails++
+	}
 	return e.data
 }
 
