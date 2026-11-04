@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../core/core.dart';
 import '../desktop.dart';
@@ -323,9 +324,29 @@ class Controller extends ChangeNotifier {
     updateProgress.value = total > 0 ? (done / total).clamp(0.0, 1.0) : null;
   }
 
-  void openFolder(String path) => desktop.open(path);
+  Future<void> openFolder(String path) async {
+    if (!await desktop.open(path)) _folderMissing(path);
+  }
 
-  void reveal(String file) => desktop.reveal(file);
+  Future<void> reveal(String file) async {
+    if (!await desktop.reveal(file)) _folderMissing(file);
+  }
+
+  void _folderMissing(String path) => _notices.add(
+        Notice(
+          'Не нашлось приложения, чтобы открыть папку. Файлы лежат здесь: $path',
+          kind: NoticeKind.error,
+        ),
+      );
+
+  Future<void> chooseDir() async {
+    try {
+      final path = await desktop.pickFolder(dir);
+      if (path != null && path.isNotEmpty) setDir(path);
+    } on PlatformException catch (e) {
+      _notices.add(Notice(e.message ?? 'Не удалось выбрать папку', kind: NoticeKind.error));
+    }
+  }
 
   void openLink(String url) => desktop.open(url);
 
