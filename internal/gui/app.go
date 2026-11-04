@@ -10,7 +10,7 @@ import (
 	"ymd/internal/yam"
 )
 
-const Version = "2.2.0"
+const Version = "2.2.1"
 
 const (
 	accNone     = "none"
